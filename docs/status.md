@@ -71,8 +71,11 @@ From identities, preserve unknown mutation outcomes when worker cleanup fails, a
 retain access-denied classification for required metadata filters. These corrections
 have regression coverage. A real MCP preview of an existing synthetic draft passed
 after correction; no additional draft was created or submitted. Correction review
-and public v0.2 release verification remain pending; local clients still point to
-v0.1.0 until the new release is verified.
+closed three findings but reproduced the represented-From failure class: the general
+locator-error category was broader than genuine property absence. Implementation
+paused for the bounded contract revisit recorded in docs/v0.2-plan.md. This is the
+first correction cycle, not a new candidate history. Local clients still point to
+v0.1.0 until the new release is independently approved and publicly verified.
 
 Research and specification challenge were required and completed for MCP version,
 COM, filters, process ownership and distribution. Independent implementation review
