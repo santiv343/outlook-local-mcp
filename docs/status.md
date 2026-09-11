@@ -49,7 +49,7 @@ unknown mutation outcomes, exact send previews, cross-store traversal and quoted
 reply preservation. The plan gate is approved; implementation has begun on the
 feature branch. Public clients continue to use the verified v0.1.0 release.
 
-Current v0.2 evidence: all 113 tests passed on Python 3.11 and 3.12. Lint, strict
+Current v0.2 evidence: all 136 tests passed on Python 3.11 and 3.12. Lint, strict
 types, formatting and package build passed. Real MCP conversation traversal/continuation, combined available
 metadata filters, draft creation, complete send preview, opening, native reply draft
 and original read-state preservation passed. Four test drafts remain in Outlook;
@@ -73,9 +73,13 @@ have regression coverage. A real MCP preview of an existing synthetic draft pass
 after correction; no additional draft was created or submitted. Correction review
 closed three findings but reproduced the represented-From failure class: the general
 locator-error category was broader than genuine property absence. Implementation
-paused for the bounded contract revisit recorded in docs/v0.2-plan.md. This is the
-first correction cycle, not a new candidate history. Local clients still point to
-v0.1.0 until the new release is independently approved and publicly verified.
+paused for the bounded contract revisit recorded in docs/v0.2-plan.md. Independent
+challenge approved the precise property-absence rule at `7bae397`. The second
+correction implements that rule, with direct/wrapped/signed HRESULT, conflicting
+status and unexpected-type regressions; the real existing-draft preview passed again.
+The original review and first correction remain part of this candidate's history.
+Final correction review and public verification are pending. Local clients still
+point to v0.1.0 until the new release is independently approved and publicly verified.
 
 Research and specification challenge were required and completed for MCP version,
 COM, filters, process ownership and distribution. Independent implementation review

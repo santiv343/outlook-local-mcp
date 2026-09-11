@@ -317,10 +317,13 @@ def test_account_lost_after_assignment_readback_never_sends(backend, monkeypatch
     [
         (ComFailure(), False),
         (ComFailure(0x8004010F), True),
+        (ComFailure(0x80040107), False),
+        (ComFailure(0x80070002), False),
         (ComFailure(0x80004005), False),
         ("unresolved-internal-name", False),
         ("bad@@example.com", False),
         (123, False),
+        (None, False),
     ],
 )
 def test_represented_from_only_falls_back_when_property_is_absent(backend, property_value, allowed):
@@ -331,6 +334,43 @@ def test_represented_from_only_falls_back_when_property_is_absent(backend, prope
         if isinstance(property_value, Exception):
             raise property_value
         return property_value
+
+    item.PropertyAccessor.GetProperty = read_property
+    if allowed:
+        assert prepare_send(backend, arguments).sender.email == "first@example.com"
+    else:
+        with pytest.raises(OutlookError):
+            prepare_send(backend, arguments)
+        assert not backend.previews.previews
+    assert item.events == ["save"]
+
+
+@pytest.mark.parametrize("represented_name", ["", "First"])
+@pytest.mark.parametrize(
+    "status,details,allowed",
+    [
+        (-2147221233, None, True),
+        (-2147352567, (0, None, None, None, 0, -2147221233), True),
+        (0x8004010F, (0, None, None, None, 0, 0x80070005), False),
+        (0x80070005, (0, None, None, None, 0, 0x8004010F), False),
+        (0x80040107, (0, None, None, None, 0, 0x8004010F), False),
+        (0x80020009, (0, None, None, None, 0, 0x80070002), False),
+        (0x80020009, (0, None), False),
+        (0x8004010F, "malformed", False),
+        (0x8004010F, (0, None, None, None, 0, None), False),
+        (None, (0, None, None, None, 0, 0x8004010F), False),
+    ],
+)
+def test_property_absence_requires_unambiguous_numeric_status(
+    backend, represented_name, status, details, allowed
+):
+    item, arguments = make_draft(backend)
+    item.SentOnBehalfOfName = represented_name
+    error = ComFailure(status)
+    error.excepinfo = details
+
+    def read_property(name):
+        raise error
 
     item.PropertyAccessor.GetProperty = read_property
     if allowed:

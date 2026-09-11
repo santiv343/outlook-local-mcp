@@ -39,7 +39,7 @@ class Draft:
         self.Sent = False
         self.SentOnBehalfOfName = ""
         self.Recipients = Recipients()
-        self.PropertyAccessor = SimpleNamespace(GetProperty=lambda name: None)
+        self.PropertyAccessor = SimpleNamespace(GetProperty=lambda name: "")
         self.GetInspector = SimpleNamespace(Activate=self.activate)
         self.events = []
         self._oleobj_ = SimpleNamespace(GetIDsOfNames=self.member_id, Invoke=self.put_reference)

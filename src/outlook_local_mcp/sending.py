@@ -30,7 +30,7 @@ from .config import (
     SEND_PREVIEW_TTL_SECONDS,
 )
 from .enums import EErrorCode
-from .errors import OutlookError, com_error
+from .errors import OutlookError, com_error, is_missing_property
 from .mail import plain_body, timestamp
 from .models import Person
 from .outlook_constants import PLAIN_TEXT_FORMAT, REPRESENTING_SMTP_PROPERTY
@@ -92,15 +92,15 @@ def represented_smtp(item: IOutlookItem) -> str | None:
     try:
         value = item.PropertyAccessor.GetProperty(REPRESENTING_SMTP_PROPERTY)
     except Exception as error:
-        mapped = com_error(error, EErrorCode.ITEM_NOT_FOUND)
-        if mapped.code == EErrorCode.ITEM_NOT_FOUND:
+        if is_missing_property(error):
             return None
+        mapped = com_error(error)
         if mapped.code == EErrorCode.ACCESS_DENIED:
             raise mapped from None
         raise OutlookError(
             EErrorCode.UNSUPPORTED_COMPOSITION, "The represented From identity is inaccessible."
         ) from None
-    if value is None or value == "":
+    if value == "":
         return None
     try:
         if not isinstance(value, str):
