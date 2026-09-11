@@ -2,13 +2,16 @@
 
 from datetime import datetime
 
-from .com_types import IAddressEntry, IOutlookItem
+from .addresses import address_entry_email, smtp_address
+from .com_types import IOutlookItem
 from .config import MAX_ATTACHMENTS, MAX_RECIPIENTS
 from .enums import EErrorCode, ERecipientKind
 from .errors import OutlookError, com_error
 from .filters import local_timezone
+from .metadata import message_metadata
 from .models import (
     Attachment,
+    BodyPage,
     EmailDetail,
     EmailSummary,
     Person,
@@ -20,7 +23,6 @@ from .outlook_constants import (
     HEADER_ONLY,
     MAIL_ITEM_CLASS,
     RECIPIENT_KINDS,
-    SMTP_ADDRESS_PROPERTY,
     SMTP_ADDRESS_TYPE,
 )
 
@@ -33,32 +35,6 @@ def timestamp(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=local_timezone())
     return value.isoformat()
-
-
-def smtp_address(value: object) -> str | None:
-    if isinstance(value, str) and "@" in value and not value.startswith("/"):
-        return value
-    return None
-
-
-def address_entry_email(entry: IAddressEntry | None) -> str | None:
-    if entry is None:
-        return None
-    try:
-        if entry.Type == SMTP_ADDRESS_TYPE:
-            return smtp_address(entry.Address)
-        for resolve_exchange in (entry.GetExchangeUser, entry.GetExchangeDistributionList):
-            try:
-                exchange = resolve_exchange()
-                if exchange is not None:
-                    address = smtp_address(exchange.PrimarySmtpAddress)
-                    if address:
-                        return address
-            except Exception:
-                continue
-        return smtp_address(entry.PropertyAccessor.GetProperty(SMTP_ADDRESS_PROPERTY))
-    except Exception:
-        return None
 
 
 def sender(item: IOutlookItem) -> tuple[Person, list[WarningInfo]]:
@@ -89,6 +65,7 @@ def summary(item: IOutlookItem, store_id: str, folder_id: str) -> EmailSummary:
     if item.Class != MAIL_ITEM_CLASS:
         raise OutlookError(EErrorCode.INVALID_ARGUMENT, "The requested item is not an email.")
     person, warnings = sender(item)
+    metadata, metadata_warnings = message_metadata(item)
     return EmailSummary(
         entry_id=item.EntryID,
         store_id=store_id,
@@ -98,7 +75,8 @@ def summary(item: IOutlookItem, store_id: str, folder_id: str) -> EmailSummary:
         received_at=timestamp(item.ReceivedTime),
         unread=item.UnRead,
         has_attachments=item.Attachments.Count > 0,
-        warnings=warnings,
+        warnings=warnings + metadata_warnings,
+        **metadata.model_dump(),
     )
 
 
@@ -124,12 +102,22 @@ def plain_body(item: IOutlookItem) -> str:
         raise OutlookError(EErrorCode.BODY_UNAVAILABLE) from None
 
 
+def body_page(body: str, offset: int, limit: int) -> BodyPage:
+    if offset > len(body):
+        raise OutlookError(EErrorCode.INVALID_ARGUMENT, "body_offset exceeds the body length.")
+    end = min(offset + limit, len(body))
+    return BodyPage(
+        body=body[offset:end],
+        body_offset=offset,
+        next_body_offset=end if end < len(body) else None,
+        body_truncated=end < len(body),
+        body_length=len(body),
+    )
+
+
 def detail(item: IOutlookItem, arguments: ReadArguments) -> EmailDetail:
     email = summary(item, arguments.store_id, item.Parent.EntryID)
-    body = plain_body(item)
-    if arguments.body_offset > len(body):
-        raise OutlookError(EErrorCode.INVALID_ARGUMENT, "body_offset exceeds the body length.")
-    end = min(arguments.body_offset + arguments.body_limit, len(body))
+    page = body_page(plain_body(item), arguments.body_offset, arguments.body_limit)
     warnings = list(email.warnings)
     recipients: list[Recipient] = []
     attachments: list[Attachment] = []
@@ -195,11 +183,7 @@ def detail(item: IOutlookItem, arguments: ReadArguments) -> EmailDetail:
         recipients=recipients,
         sent_at=sent_at,
         attachments=attachments,
-        body=body[arguments.body_offset : end],
-        body_offset=arguments.body_offset,
-        next_body_offset=end if end < len(body) else None,
-        body_truncated=end < len(body),
-        body_length=len(body),
+        **page.model_dump(),
         omitted_recipients=omitted_recipients,
         omitted_attachments=omitted_attachments,
     )

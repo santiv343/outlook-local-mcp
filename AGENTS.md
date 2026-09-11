@@ -1,7 +1,10 @@
 # Project instructions
 
-- Outlook access is read-only. Never send, save, mark read, move, delete, open attachments,
-  add stores, change account settings, or call Outlook.Quit.
+- Default Outlook access is read-only. Explicit --enable-write-tools permits opening
+  email windows and saving drafts/replies; --enable-send additionally permits reviewed
+  draft submission. Enforce capabilities in both the MCP server and COM worker.
+- Never mark read directly, move, delete, open attachments, add stores, change account
+  settings or call Outlook.Quit. Never blindly retry an uncertain mutation.
 - Attach only to an already running classic Outlook with a loaded profile.
 - Create, use and release every COM object on the worker's main STA thread.
   Only JSON data crosses the private worker pipe. The parent owns worker termination.
@@ -11,7 +14,7 @@
 - Keep all code, comments, tool names, descriptions, errors and documentation in English.
 - Reuse existing mechanisms. Do not add frameworks for state, dependency injection,
   telemetry, persistence, HTTP, providers or background synchronization.
-- Current decisions and progress: docs/status.md and docs/architecture.md.
+- Current decisions and progress: docs/status.md, docs/architecture.md and docs/v0.2-plan.md.
 - Validate with `uv run --locked ruff check .`, `uv run --locked ruff format --check .`,
   `uv run --locked mypy`, `uv run --locked pytest`, and `uv build --no-sources`.
 - Run `uv run --locked python scripts/smoke_test.py` for the real MCP/Outlook journey.

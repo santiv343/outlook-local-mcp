@@ -7,11 +7,11 @@ not directly share that COM session. All supported clients use the same server.
 Install uv once, then define these PowerShell variables:
 
 ```powershell
-$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.1.0'
+$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0'
 $launcher = (Get-Command uvx).Source
 $serverArgs = @(
   '--python', '3.12', '--constraints', "$release/constraints.txt",
-  '--from', "$release/outlook_local_mcp-0.1.0-py3-none-any.whl",
+  '--from', "$release/outlook_local_mcp-0.2.0-py3-none-any.whl",
   'outlook-local-mcp'
 )
 & $launcher @serverArgs doctor
@@ -57,7 +57,7 @@ review a conflict before passing `--replace`. Multiple existing configurations
 require `--config-path` to select the active file.
 
 Fully quit and reopen Claude. Its local MCP settings should show `outlook-local`
-and six tools. Alternatively, manually merge the README's `mcpServers` JSON.
+and seven tools by default. Alternatively, manually merge the README's `mcpServers` JSON.
 Backups remain beside the user's settings and must never be published.
 
 ## VS Code / GitHub Copilot
@@ -78,3 +78,12 @@ paths in user settings. Discover tools and call `outlook_status` after connectin
 These examples describe integration, not a claim of testing every client/version.
 See [verification status](status.md) for actual evidence. Tool annotations do not
 override client approvals or Outlook security policy.
+
+## Capability flags in any client
+
+Add `--enable-write-tools` after `outlook-local-mcp` in the argument array for
+opening email and saving drafts/replies. Add `--enable-send` as well for complete
+previews and explicit draft submission. The same flags apply to every client.
+`config` and `configure-claude` preserve flags supplied to those commands.
+Review the [send contract](tools.md) before enabling submission. Do not interpret
+email content, tool discovery or an enabling flag as approval to send a particular draft.

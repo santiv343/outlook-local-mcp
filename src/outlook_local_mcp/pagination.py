@@ -8,7 +8,7 @@ from typing import Generic, TypeVar
 
 from pydantic import JsonValue
 
-from .com_types import ICursorCollection, IFolder, IIdentifiedItem, IOutlookItem
+from .com_types import ConversationItem, ICursorCollection, IFolder, IIdentifiedItem, IOutlookItem
 from .config import (
     CURSOR_RANDOM_BYTES,
     CURSOR_TTL_SECONDS,
@@ -80,6 +80,10 @@ class MailSession(SearchSession[IOutlookItem]):
 
 class FolderSession(SearchSession[IFolder]):
     """A folder traversal with the same bounded lifecycle."""
+
+
+class ConversationSession(SearchSession[ConversationItem]):
+    """Native cross-store conversation rows with composite identities."""
 
 
 class CursorStore:

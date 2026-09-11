@@ -4,11 +4,12 @@
 flowchart TD
     Client[Local Windows MCP client] -->|MCP stdio| Server[Python MCP server]
     Server -->|Private JSON pipes| Worker[Owned worker process / one STA thread]
-    Worker -->|Read-only COM| Outlook[Running classic Outlook / existing profile]
+    Worker -->|COM / selected capabilities| Outlook[Running classic Outlook / existing profile]
 ```
 
 The official MCP Python SDK 2.x owns protocol handling. The server uses explicit
-schemas and read-only annotations. All clients share the same six tools.
+schemas and capability-specific annotations. Every client uses the same tools:
+seven by default, ten with draft/UI actions, twelve with optional sending.
 
 ## Responsibilities
 
@@ -21,12 +22,18 @@ schemas and read-only annotations. All clients share the same six tools.
 - `mail.py`, `filters.py`, `pagination.py`: map properties and traverse bounded
   collections. Only serializable data crosses the private worker pipes.
 - `client_config.py`: optional client setup, outside the MCP transport.
+- `drafts.py`, `accounts.py`, `sending.py`: explicit account selection, native drafts,
+  complete previews and one-use submission. No automatic mutation retries.
+- `references.py`: bounded short IDs translated at the worker JSON boundary;
+  Outlook and cursor logic retain native, store-bound identities internally.
 
 ## Process lifecycle
 
 A task timeout cannot interrupt blocked COM. Active timeouts and cancellations
 terminate and reap the owned worker. A subsequent call creates a new worker,
-invalidating old cursors. Queued timeouts never kill the operation ahead of them.
+invalidating old cursors, short references and send previews. Queued timeouts never
+kill the operation ahead of them. A dispatched mutation with a timeout, cancellation
+or broken worker connection returns `WRITE_OUTCOME_UNKNOWN`, never a retryable result.
 The server never starts Outlook, opens login dialogs or calls Outlook.Quit.
 
 Client EOF cancels active work through the SDK connection lifecycle; final cleanup
@@ -56,6 +63,19 @@ Each session remembers up to 20,000 IDs or approximately 4 MiB of ID bookkeeping
 Duplicates are suppressed by EntryID; arrivals, moves and deletions can still change
 results. There is no snapshot or exact total. Exhaustion means traversal ended;
 `evaluation_complete` additionally requires no omitted candidates across the session.
+
+Native conversation tables reuse the same cursor engine and include each row's
+store ID. Their deduplication keys include both store and message identity. Short
+references also bind item/folder IDs to a store. Successful use or re-emission refreshes
+reference TTL; cursor/send-preview expiry is unchanged. Reference capacity failure
+explicitly resets the backend, removing unpublished continuations and previews.
+
+Send account references can disappear when Outlook releases/re-fetches a draft.
+The preview therefore binds an explicit account for the approved MCP send. Validation
+before assignment requires a saved draft and identical content/modification time;
+after assignment it checks account and content without treating its own dirty flag
+as a user edit. PUTREF, response construction and serialization are inside the
+unknown-mutation boundary. COM references never leave the STA worker.
 
 References: [STA requirement](https://learn.microsoft.com/en-us/office/client-developer/outlook/selecting-an-api-or-technology-for-developing-solutions-for-outlook),
 [Items.Restrict](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict),

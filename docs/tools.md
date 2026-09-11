@@ -1,6 +1,7 @@
 # Tool reference
 
-All six tools have English names, strict JSON inputs and structured outputs.
+All tools have English names, strict JSON inputs and structured outputs. Seven are
+available by default; write and send flags expose ten and twelve respectively.
 Unknown arguments are rejected. Execution failures set MCP `isError: true` and
 return `code`, `message`, `retryable`; they are never empty successful lists.
 Unknown tool names use a JSON-RPC invalid-parameters error.
@@ -12,7 +13,13 @@ requests. Returned data is shared with the requesting AI client.
 
 Email tools default to the default Inbox. A store without a folder selects that
 store's Inbox; an unavailable Inbox is `FOLDER_NOT_FOUND`. A folder ID requires a
-store ID. Outlook IDs are opaque and independent of localized folder names.
+store ID. IDs are opaque and independent of localized folder names. Outputs use
+short, typed references bound to the worker and native mailbox. They remain valid
+for ten minutes after their last successful use or re-emission; reset invalidates them.
+Pass them back exactly as returned. Native Outlook IDs are also accepted as input.
+Expired references require searching/listing again. Reference capacity is bounded
+to 20,000 mappings or approximately 4 MiB. `REFERENCE_LIMIT` explicitly clears all
+references, cursors and send previews; obtain fresh references with a narrower search.
 Searches cover one folder and never traverse subfolders implicitly.
 
 List limits default to 20 and range from 1 to 100. Summaries never contain bodies.
@@ -33,7 +40,9 @@ is an execution error. Does not enumerate account names or messages.
 ## `list_mailboxes()`
 
 Returns `items` containing `store_id`, `name`, `is_default`, plus `warnings` and
-`omitted`. Only stores already available in the current Outlook session are listed.
+`omitted`. Each store also lists available `sending_accounts` (name and SMTP address)
+for explicit account selection. Warnings identify incomplete account discovery.
+Only stores already available in the current Outlook session are listed.
 
 ## `list_folders(store_id, parent_folder_id?, limit=20, cursor?)`
 
@@ -56,6 +65,9 @@ The same budgets and coverage fields as search apply.
   "received_at": "2026-01-15T12:00:00+00:00",
   "unread": true,
   "has_attachments": false,
+  "conversation_id": "synthetic-conversation",
+  "categories": [],
+  "importance": "normal",
   "warnings": []
 }
 ```
@@ -70,6 +82,10 @@ a warning; internal Exchange addresses are never presented as SMTP.
 | `query` | `""` | Literal, case-insensitive substring; no regex/SQL syntax |
 | `query_in` | `"subject"` | `subject`, `body`, `subject_body` |
 | `sender` | null | Substring in available sender name or SMTP address |
+| `recipient` | null | Substring in available recipient names or SMTP addresses |
+| `category` | null | Exact category name, case-insensitive; Windows regional separator |
+| `importance` | null | `low`, `normal`, `high` |
+| `attachment_name` | null | Literal case-insensitive substring in attachment filenames |
 | `after` | null | Inclusive received-time lower bound |
 | `before` | null | Exclusive received-time upper bound |
 | `unread` | null | Exact unread flag when supplied |
@@ -81,6 +97,10 @@ Filters combine with AND. Dates accept `YYYY-MM-DD` (Windows local midnight) or
 ISO 8601 datetime with timezone. Invalid dates, timezone-free times and empty or
 inverted ranges are rejected. Generated date restrictions narrow candidates;
 exact dates and literal text are evaluated in Python. Body search is explicit.
+`query` is a contiguous substring; multiple words do not become independent terms.
+Outlook's AQS operators (`OR`, `NOT`, field syntax) are not interpreted. Use the
+explicit filter parameters. Recipient/attachment properties are read for filtering
+only when requested, with bounded traversal and inconclusive-omission handling.
 
 Per call: at most 1,000 candidates or ten seconds of cooperative traversal,
 protected by a 30-second external deadline. Responses include:
@@ -109,7 +129,7 @@ ended, while `evaluation_complete` also requires no omissions across the session
 `scanned` and `omitted` count this call. Three consecutive access denials stop the
 operation rather than producing a misleading empty list.
 
-## `read_email(entry_id, store_id, body_offset=0, body_limit=12000)`
+## `read_email(entry_id, store_id, body_offset=0, body_limit=2000)`
 
 Confirms a mail item and returns its summary, available recipients, sent/received
 dates, plain text body and attachment names/sizes. Never opens HTML, links or files.
@@ -119,18 +139,87 @@ offsets, not bytes. Results include `body_offset`, `next_body_offset`,
 `body_truncated`, `body_length`. Continue while truncated. Offsets beyond the end
 are errors; exactly at the end returns an empty final page. Message changes can
 affect continuation because the body is read again on each call.
+Read only when the requested answer needs body content; a listing normally needs
+summary fields only. Truncation describes remaining content, not an instruction to
+fetch it unconditionally.
 
 Recipients have `kind`: `to`, `cc`, `bcc`, `unknown`. Recipient and attachment lists
 are capped at 1,000 each, with omission counts and warnings. If a whole collection
 is inaccessible, a warning says its size is unknown. Inaccessible bodies are
 distinguished from valid empty bodies. No read/unread assignment is performed.
 
+## `read_conversation(entry_id, store_id, limit=10, cursor?, body_limit=2000)`
+
+Uses Outlook's native conversation table, ordered by ConversationIndex. At most
+20 messages per page; the usual scan budgets, omissions and cursor rules apply.
+Items may span stores and folders; each reports its own location. Page-level location
+identifies the anchor only. Deleted Items are excluded by Outlook. Unsupported or
+absent conversations return `CONVERSATION_UNAVAILABLE`; no subject-based thread is invented.
+Each item is an email detail with a body page; `read_email` continues that message.
+Only page `limit` may change across cursor calls; `body_limit` remains bound.
+
+## `open_email(entry_id, store_id)` — write capability
+
+Displays and activates the native Outlook message window. Returns `opened: true`
+and identifiers. Opening may change read/unread state through Outlook settings;
+the server never assigns that property directly. No sending occurs.
+
+## `create_draft(to, subject, body, cc=[], bcc=[], store_id?, account_email?)` — write capability
+
+Saves a plain-text draft and returns IDs, actual selected account, resolved recipients,
+subject and a paged body. Recipients must be explicit SMTP addresses: 1–100 total,
+with at most 998 subject characters and 30,000 input body characters.
+Without `account_email`, exactly one live account must match the selected/default
+delivery store. An explicit email must match exactly one account; both selectors,
+when supplied, must agree. Missing/ambiguous accounts are rejected.
+Use `open_email` for native review; the returned account describes the creation
+operation. Outlook may discard its transient account reference after re-fetching,
+so a subsequent MCP send selects its account explicitly in `prepare_send`.
+
+## `reply_to_email(entry_id, store_id, body, reply_all=false, account_email?)` — write capability
+
+Creates a native reply/reply-all draft, prepends the supplied plain text and saves
+without altering the original. The complete quotation is preserved, even when it
+exceeds the input limit; the returned body is paginated. `store_id` locates the original,
+which can reside in an archive. Native reply account selection is retained unless
+explicitly overridden. If Outlook supplies no account, specify `account_email`.
+The saved draft must belong to the selected account's Drafts folder. Never sends.
+
+## `prepare_send(entry_id, store_id, account_email)` — send capability
+
+Selects a sending account explicitly for the approved MCP send. Requires a saved,
+unsent plain-text draft in that account's Drafts folder, resolved SMTP recipients,
+no attachments and a body of at most 30,000 characters. Delegated/unresolved From
+overrides, conflicting native accounts and unsupported compositions need native UI.
+
+Returns the complete account, sender, recipient roles, subject, body,
+`draft_modified_at`, digest, confirmation token and a five-minute lifetime.
+Nothing is truncated and no Outlook mutation occurs. Show this exact preview to the
+user and obtain explicit approval. A token proves revision continuity, not human consent.
+A new preview replaces the previous one. At most twenty previews are retained,
+containing IDs, selected account SMTP, digest and expiry only; no body copies.
+
+## `send_draft(entry_id, store_id, confirmation_token)` — send capability
+
+Revalidates the draft, complete preview and modification time, then consumes the
+token before assigning the approved account and submitting through Outlook. The
+assignment uses COM PUTREF with a dynamically resolved member, followed by account,
+location and content checks. It does not save between assignment and Send.
+
+Success is `submitted_to_outlook`, not proof of delivery. Changed, expired or reused
+previews are rejected. Outlook offers no transaction combining comparison and Send;
+timestamps supplement content comparison but are not unique revision identifiers.
+Any uncertain mutation returns `WRITE_OUTCOME_UNKNOWN`, with no automatic retry.
+Inspect Outlook, Drafts, Outbox and Sent Items before considering another attempt.
+
 ## Stable errors
 
 `UNSUPPORTED_PLATFORM`, `OUTLOOK_NOT_INSTALLED`, `OUTLOOK_UNAVAILABLE`,
 `OUTLOOK_TIMEOUT`, `ACCESS_DENIED`, `STORE_NOT_FOUND`, `FOLDER_NOT_FOUND`,
 `ITEM_NOT_FOUND`, `BODY_UNAVAILABLE`, `METADATA_UNAVAILABLE`, `INVALID_ARGUMENT`, `CURSOR_EXPIRED`,
-`SEARCH_SESSION_LIMIT`, `SERVER_BUSY`, `INTERNAL_ERROR`.
+`SEARCH_SESSION_LIMIT`, `SERVER_BUSY`, `INTERNAL_ERROR`, `REFERENCE_EXPIRED`,
+`REFERENCE_LIMIT`, `CAPABILITY_DISABLED`, `WRITE_OUTCOME_UNKNOWN`,
+`UNSUPPORTED_COMPOSITION`, `CONFIRMATION_INVALID`, `DRAFT_CHANGED`, `CONVERSATION_UNAVAILABLE`.
 
 A stale moved-message ID requires searching again. Retryable means a later request
 may succeed, not that clients should loop indefinitely. See [troubleshooting](troubleshooting.md).

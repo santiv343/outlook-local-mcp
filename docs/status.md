@@ -1,7 +1,7 @@
 # Verification status
 
-Target: a public, read-only Windows Outlook MCP package for local stdio clients,
-with automatic Python provisioning through uvx.
+Target: a public Windows Outlook MCP package for local stdio clients, read-only
+by default with opt-in actions and automatic Python provisioning through uvx.
 
 ## Verified locally
 
@@ -43,8 +43,43 @@ with automatic Python provisioning through uvx.
 Keep v0.1.0 available while implementing a separate feature branch for opening
 messages in Outlook, creating drafts/replies, reading conversations, additional
 recipient/category/importance/attachment-name filters, and optional reviewed sending.
-Mutation tools remain disabled by default. The implementation contract and its
-challenge must settle write recovery and send confirmation before implementation.
+Mutation tools remain disabled by default. The independently challenged contract
+in docs/v0.2-plan.md settles account selection, represented From identity, conservative
+unknown mutation outcomes, exact send previews, cross-store traversal and quoted
+reply preservation. The plan gate is approved; implementation has begun on the
+feature branch. Public clients continue to use the verified v0.1.0 release.
+
+Current v0.2 evidence: all 136 tests passed on Python 3.11 and 3.12. Lint, strict
+types, formatting and package build passed. Real MCP conversation traversal/continuation, combined available
+metadata filters, draft creation, complete send preview, opening, native reply draft
+and original read-state preservation passed. Four test drafts remain in Outlook;
+no live send was attempted. Submission and failure recovery are simulated.
+Preview account binding follows the independently challenged correction for Outlook's
+transient SendUsingAccount reference. Native COM PUTREF sets the selected account
+immediately before submission; a complete preview carries explicit account selection.
+
+The owner also requested efficient context use after exercising the public release.
+The reported date-search failure was reproduced: the formatter referenced constants
+absent from win32con. The corrected formatter passes a real Windows regression and a
+real MCP date search. Short references and metadata-first guidance are implemented
+after independent challenge. A real date search and subsequent short-reference read
+passed. Synthetic twenty-message JSON fell from 25,430 to 7,076 bytes (72.2%); tokens
+were not measured. No supplied mailbox transcript or personal content is stored in
+the repository. Initial exact implementation review requested four corrections:
+require the actual native account after assignment, reject inaccessible represented
+From identities, preserve unknown mutation outcomes when worker cleanup fails, and
+retain access-denied classification for required metadata filters. These corrections
+have regression coverage. A real MCP preview of an existing synthetic draft passed
+after correction; no additional draft was created or submitted. Correction review
+closed three findings but reproduced the represented-From failure class: the general
+locator-error category was broader than genuine property absence. Implementation
+paused for the bounded contract revisit recorded in docs/v0.2-plan.md. Independent
+challenge approved the precise property-absence rule at `7bae397`. The second
+correction implements that rule, with direct/wrapped/signed HRESULT, conflicting
+status and unexpected-type regressions; the real existing-draft preview passed again.
+The original review and first correction remain part of this candidate's history.
+Final correction review and public verification are pending. Local clients still
+point to v0.1.0 until the new release is independently approved and publicly verified.
 
 Research and specification challenge were required and completed for MCP version,
 COM, filters, process ownership and distribution. Independent implementation review

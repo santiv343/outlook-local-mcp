@@ -9,6 +9,7 @@ from contextlib import suppress
 
 from pydantic import JsonValue, TypeAdapter
 
+from .capabilities import MUTATING_TOOLS
 from .config import (
     MAX_IPC_BYTES,
     MAX_PENDING_OPERATIONS,
@@ -17,7 +18,7 @@ from .config import (
 )
 from .enums import EErrorCode, EToolName
 from .errors import OutlookError
-from .models import TWorkerResponse, WorkerFailure, WorkerRequest
+from .models import RuntimeOptions, TWorkerResponse, WorkerFailure, WorkerRequest
 
 
 class Supervisor:
@@ -25,9 +26,14 @@ class Supervisor:
         self,
         timeout: float = OPERATION_TIMEOUT,
         command: Sequence[str] | None = None,
+        options: RuntimeOptions | None = None,
     ) -> None:
         self.timeout = timeout
-        self.command = list(command or [sys.executable, "-m", "outlook_local_mcp", "--worker"])
+        self.options = options or RuntimeOptions()
+        self.command = list(
+            command
+            or [sys.executable, "-m", "outlook_local_mcp", "--worker", *self.options.flags()]
+        )
         self.process: asyncio.subprocess.Process | None = None
         self.lock = asyncio.Lock()
         self.pending = 0
@@ -69,7 +75,7 @@ class Supervisor:
         return self.process
 
     async def _stop(self) -> None:
-        process, self.process = self.process, None
+        process = self.process
         if process is None:
             return
         if process.returncode is None:
@@ -81,6 +87,16 @@ class Supervisor:
             raise OutlookError(
                 EErrorCode.INTERNAL_ERROR, "The worker did not exit within the cleanup deadline."
             ) from None
+        if self.process is process:
+            self.process = None
+
+    async def _stop_after_failure(self) -> None:
+        try:
+            await self._stop()
+        except (Exception, asyncio.CancelledError):
+            # Preserve the operation's outcome and retain ownership for close().
+            # Never start another COM worker while cleanup is unconfirmed.
+            self.closed = True
 
     async def close(self) -> None:
         self.closed = True
@@ -95,6 +111,7 @@ class Supervisor:
             raise OutlookError(EErrorCode.SERVER_BUSY)
         self.pending += 1
         acquired = False
+        dispatched_mutation = False
         try:
             async with asyncio.timeout(self.timeout):
                 await self.lock.acquire()
@@ -111,6 +128,7 @@ class Supervisor:
                 message = (
                     WorkerRequest(operation=operation, arguments=arguments).model_dump_json() + "\n"
                 )
+                dispatched_mutation = operation in MUTATING_TOOLS
                 writer.write(message.encode("utf-8"))
                 await writer.drain()
                 line = await reader.readline()
@@ -122,18 +140,28 @@ class Supervisor:
                 return response.result
         except TimeoutError:
             if acquired:
-                await self._stop()
-            raise OutlookError(EErrorCode.OUTLOOK_TIMEOUT) from None
+                await self._stop_after_failure()
+            raise OutlookError(
+                EErrorCode.WRITE_OUTCOME_UNKNOWN
+                if dispatched_mutation
+                else EErrorCode.OUTLOOK_TIMEOUT
+            ) from None
         except asyncio.CancelledError:
             if acquired:
-                await self._stop()
+                await self._stop_after_failure()
+            if dispatched_mutation:
+                raise OutlookError(EErrorCode.WRITE_OUTCOME_UNKNOWN) from None
             raise
         except OutlookError:
             raise
         except Exception:
             if acquired:
-                await self._stop()
-            raise OutlookError(EErrorCode.INTERNAL_ERROR) from None
+                await self._stop_after_failure()
+            raise OutlookError(
+                EErrorCode.WRITE_OUTCOME_UNKNOWN
+                if dispatched_mutation
+                else EErrorCode.INTERNAL_ERROR
+            ) from None
         finally:
             if acquired:
                 self.lock.release()

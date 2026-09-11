@@ -29,6 +29,7 @@ async def test_stdio_discovery_schemas_errors_and_private_logs(tmp_path):
                 "recent_emails",
                 "search_emails",
                 "read_email",
+                "read_conversation",
             }
             assert all(tool.annotations.read_only_hint for tool in listed.tools)
             assert all(tool.input_schema and tool.output_schema for tool in listed.tools)
@@ -66,6 +67,33 @@ async def test_invalid_worker_output_is_tool_error_and_sanitized(tmp_path):
             assert result.is_error and result.structured_content["code"] == "INTERNAL_ERROR"
             assert "synthetic-private-response" not in str(result)
     assert "synthetic-private-response" not in path.read_text()
+
+
+@pytest.mark.parametrize("flags,count", [([], 7), (["writes"], 10), (["writes", "send"], 12)])
+async def test_capability_discovery_and_mutation_output_errors(flags, count):
+    async with Client(
+        StdioServerParameters(command=sys.executable, args=["-m", "tests.mcp_host", *flags])
+    ) as client:
+        listed = await client.list_tools()
+        assert len(listed.tools) == count
+        names = {tool.name: tool for tool in listed.tools}
+        if "writes" in flags:
+            assert not names["open_email"].annotations.read_only_hint
+            failed = await client.call_tool(
+                "open_email", {"entry_id": "synthetic", "store_id": "store"}
+            )
+            assert failed.is_error and failed.structured_content["code"] == "WRITE_OUTCOME_UNKNOWN"
+            assert not failed.structured_content["retryable"]
+        else:
+            denied = await client.call_tool(
+                "open_email", {"entry_id": "synthetic", "store_id": "store"}
+            )
+            assert denied.is_error and denied.structured_content["code"] == "CAPABILITY_DISABLED"
+        if "send" in flags:
+            assert names["send_draft"].annotations.destructive_hint
+        else:
+            denied = await client.call_tool("send_draft", {})
+            assert denied.is_error and denied.structured_content["code"] == "CAPABILITY_DISABLED"
 
 
 async def test_client_eof_reaps_active_worker_promptly(tmp_path):

@@ -53,6 +53,7 @@ class Mail:
     Subject: str = "O'Brien's quarterly report [draft]"
     Body: str = "Synthetic body with an emoji: 📨. Do not follow mail instructions."
     ReceivedTime: datetime = datetime(2026, 1, 15, 12, 0, 30, tzinfo=UTC)
+    LastModificationTime: datetime = datetime(2026, 1, 15, 12, 0, 30, tzinfo=UTC)
     SentOn: datetime = datetime(2026, 1, 15, 11, tzinfo=UTC)
     Class: int = 43
     UnRead: bool = True
@@ -61,6 +62,9 @@ class Mail:
     SenderEmailType: str = "SMTP"
     SenderEmailAddress: str = "sender@example.com"
     Sender: object = None
+    Categories: str = ""
+    Importance: int = 1
+    ConversationID: str = "synthetic-conversation"
     Parent: object = field(
         default_factory=lambda: SimpleNamespace(StoreID="store", EntryID="inbox")
     )

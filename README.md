@@ -1,8 +1,9 @@
 # outlook-local-mcp
 
 Read your local Outlook mailbox from an MCP client. Runs on Windows, attaches to
-your existing **classic Outlook** session, and exposes six read-only tools over
-standard input/output.
+your existing **classic Outlook** session, and exposes seven read-only tools over
+standard input/output. Opening messages, creating drafts/replies and reviewed sending
+are available through explicit capability flags.
 
 The server is client-independent: use it with local stdio clients such as Codex,
 Claude Desktop, Claude Code, Cursor or VS Code. Configuration varies by client;
@@ -24,8 +25,8 @@ see [client setup](docs/clients.md) and [tested integrations](docs/status.md).
       "command": "uvx",
       "args": [
         "--python", "3.12",
-        "--constraints", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.1.0/constraints.txt",
-        "--from", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.1.0/outlook_local_mcp-0.1.0-py3-none-any.whl",
+        "--constraints", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0/constraints.txt",
+        "--from", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0/outlook_local_mcp-0.2.0-py3-none-any.whl",
         "outlook-local-mcp"
       ]
     }
@@ -49,10 +50,10 @@ remote containers and cloud chats cannot directly access this Windows COM sessio
 In PowerShell, define the versioned command once:
 
 ```powershell
-$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.1.0'
+$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0'
 $serverArgs = @(
   '--python', '3.12', '--constraints', "$release/constraints.txt",
-  '--from', "$release/outlook_local_mcp-0.1.0-py3-none-any.whl",
+  '--from', "$release/outlook_local_mcp-0.2.0-py3-none-any.whl",
   'outlook-local-mcp'
 )
 uvx @serverArgs doctor
@@ -81,9 +82,33 @@ For Codex and other clients, see [client setup](docs/clients.md).
 | `recent_emails` | Recent summaries, without bodies |
 | `search_emails` | Literal text and metadata filters in one folder |
 | `read_email` | Plain text body pages and attachment metadata |
+| `read_conversation` | Native threads across accessible stores and folders |
 
 **An empty partial search page does not mean no messages match.** Follow its
 cursor and inspect coverage and warnings. See [tool contracts](docs/tools.md).
+
+For an Inbox overview, the agent can call `search_emails` directly with date filters.
+No mailbox or folder discovery is required. Responses use short references, lists
+contain no bodies, and body reads default to 2,000 characters. The server instructs
+clients to make sequential calls and request content only when the question needs it.
+See [efficient use](docs/efficient-use.md).
+
+## Optional Outlook actions
+
+Append `--enable-write-tools` after `outlook-local-mcp` in the server arguments to
+expose `open_email`, `create_draft` and `reply_to_email` (ten tools total). Drafts are
+saved without sending. Opening a message can change its read state through Outlook settings.
+
+Also append `--enable-send` to expose `prepare_send` and `send_draft` (twelve tools).
+Sending requires an explicit account, a complete preview and a one-use revision token.
+The client must obtain user approval of the preview before submitting. The token
+checks content continuity; it does not authenticate a human. Only plain-text drafts
+without attachments and with at most 30,000 body characters support programmatic send.
+Other drafts can be reviewed and sent through Outlook's own UI.
+
+On `WRITE_OUTCOME_UNKNOWN`, inspect Outlook, Drafts, Outbox and Sent Items before
+another attempt. The server never automatically retries a mutation. Submission to
+Outlook does not prove delivery. These capabilities are disabled by default.
 
 ## Scope and privacy
 
@@ -91,8 +116,8 @@ cursor and inspect coverage and warnings. See [tool contracts](docs/tools.md).
   The recommended command provisions Python 3.12 automatically.
 - Reads stores, mounted archives and shared stores already available in Outlook.
   Does not add accounts, open external PST files or grant access.
-- No sending, replying, deleting, moving, saving or marking read. No opening links,
-  running HTML, fetching remote images or downloading attachments.
+- Default tools are read-only. Opt-in actions follow the boundaries above. No deleting,
+  moving, direct read-state changes, opening links, executing HTML or attachment downloads.
 - No Azure app registration or stored email credentials. Outlook profile permissions
   and corporate Object Model protections still apply.
 - The server makes no outbound network connections of its own and has no telemetry.
@@ -106,6 +131,9 @@ cursor and inspect coverage and warnings. See [tool contracts](docs/tools.md).
 
 Microsoft documents [classic/new Outlook differences](https://support.microsoft.com/en-us/outlook/getstarted/feature-comparison-between-new-outlook-and-classic-outlook)
 and [Object Model security](https://learn.microsoft.com/en-us/office/vba/outlook/security/security-behavior-of-the-outlook-object-model).
+New Outlook alone, or a computer without classic Outlook, is unsupported. Direct
+cloud mailbox access through Microsoft Graph is a separate integration and is not
+implemented here.
 
 ## Development
 
@@ -122,6 +150,10 @@ Tests use synthetic COM objects and real subprocess/MCP transports. Windows CI
 checks Python 3.11 and 3.12 without a mailbox. For the real Outlook journey, open
 Outlook and run `uv run --locked python scripts/smoke_test.py`. This reads messages
 but prints only counts and pass/fail. Never publish mailbox data or personal config.
+`scripts/smoke_actions.py` additionally creates and opens one synthetic draft and
+previews it, without sending. It retains that draft for review. Inspect Outlook
+before rerunning after an uncertain mutation result. See [verification status](docs/status.md)
+for the distinction between real draft/preview checks and simulated submission tests.
 
 [Architecture](docs/architecture.md) · [Troubleshooting](docs/troubleshooting.md) ·
 [Security](SECURITY.md) · [MIT license](LICENSE)

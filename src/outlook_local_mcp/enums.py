@@ -10,9 +10,17 @@ class EToolName(StrEnum):
     RECENT_EMAILS = "recent_emails"
     SEARCH_EMAILS = "search_emails"
     READ_EMAIL = "read_email"
+    OPEN_EMAIL = "open_email"
+    CREATE_DRAFT = "create_draft"
+    REPLY_TO_EMAIL = "reply_to_email"
+    READ_CONVERSATION = "read_conversation"
+    PREPARE_SEND = "prepare_send"
+    SEND_DRAFT = "send_draft"
 
 
 class EErrorCode(StrEnum):
+    REFERENCE_EXPIRED = "REFERENCE_EXPIRED"
+    REFERENCE_LIMIT = "REFERENCE_LIMIT"
     UNSUPPORTED_PLATFORM = "UNSUPPORTED_PLATFORM"
     OUTLOOK_NOT_INSTALLED = "OUTLOOK_NOT_INSTALLED"
     OUTLOOK_UNAVAILABLE = "OUTLOOK_UNAVAILABLE"
@@ -28,6 +36,12 @@ class EErrorCode(StrEnum):
     SEARCH_SESSION_LIMIT = "SEARCH_SESSION_LIMIT"
     SERVER_BUSY = "SERVER_BUSY"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    CAPABILITY_DISABLED = "CAPABILITY_DISABLED"
+    WRITE_OUTCOME_UNKNOWN = "WRITE_OUTCOME_UNKNOWN"
+    UNSUPPORTED_COMPOSITION = "UNSUPPORTED_COMPOSITION"
+    CONFIRMATION_INVALID = "CONFIRMATION_INVALID"
+    DRAFT_CHANGED = "DRAFT_CHANGED"
+    CONVERSATION_UNAVAILABLE = "CONVERSATION_UNAVAILABLE"
 
 
 class EStopReason(StrEnum):
@@ -42,3 +56,9 @@ class ERecipientKind(StrEnum):
     CC = "cc"
     BCC = "bcc"
     UNKNOWN = "unknown"
+
+
+class EReferenceKind(StrEnum):
+    STORE = "s"
+    FOLDER = "f"
+    ITEM = "m"

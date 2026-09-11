@@ -7,12 +7,13 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import CLIENT_SERVER_NAME
+from .config import CLIENT_SERVER_NAME, ENABLE_SEND_FLAG, ENABLE_WRITE_FLAG
 from .errors import OutlookError
+from .models import RuntimeOptions
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Read-only classic Outlook MCP server")
+    parser = argparse.ArgumentParser(description="Classic Outlook MCP server; read-only by default")
     parser.add_argument("command", nargs="?", choices=["doctor", "config", "configure-claude"])
     parser.add_argument("--config-path", type=Path, help="Explicit Claude configuration file")
     parser.add_argument(
@@ -23,11 +24,24 @@ def main() -> None:
     )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        ENABLE_WRITE_FLAG, action="store_true", help="Enable opening mail and saving drafts/replies"
+    )
+    parser.add_argument(
+        ENABLE_SEND_FLAG,
+        action="store_true",
+        help="Also enable previewed draft submission; requires --enable-write-tools",
+    )
     arguments = parser.parse_args()
+    if arguments.enable_send and not arguments.enable_write_tools:
+        parser.error("--enable-send requires --enable-write-tools")
+    options = RuntimeOptions(
+        enable_write_tools=arguments.enable_write_tools, enable_send=arguments.enable_send
+    )
     if arguments.worker:
         from .worker import run_worker
 
-        run_worker()
+        run_worker(options)
     elif arguments.command == "doctor":
         from .doctor import diagnose
 
@@ -38,7 +52,7 @@ def main() -> None:
         from .client_config import claude_config_path, configure_claude, server_entry
 
         try:
-            entry = server_entry()
+            entry = server_entry(options=options)
             if arguments.command == "config":
                 print(json.dumps({"mcpServers": {CLIENT_SERVER_NAME: entry}}, indent=2))
             else:
@@ -61,7 +75,7 @@ def main() -> None:
     else:
         from .server import serve
 
-        asyncio.run(serve())
+        asyncio.run(serve(options=options))
 
 
 if __name__ == "__main__":

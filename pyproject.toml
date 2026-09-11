@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "outlook-local-mcp"
-version = "0.1.0"
-description = "Read-only MCP server for local classic Outlook on Windows"
+version = "0.2.0"
+description = "Local classic Outlook MCP server with opt-in drafts and reviewed sending"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "MIT"
