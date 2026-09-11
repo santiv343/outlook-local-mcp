@@ -12,10 +12,12 @@ from . import __version__
 from .config import CLIENT_SERVER_NAME, RELEASE_BASE, RUNTIME_PYTHON
 from .enums import EErrorCode
 from .errors import OutlookError
-from .models import ConfigurationResult
+from .models import ConfigurationResult, RuntimeOptions
 
 
-def server_entry(launcher: str | None = None) -> dict[str, JsonValue]:
+def server_entry(
+    launcher: str | None = None, options: RuntimeOptions | None = None
+) -> dict[str, JsonValue]:
     command = launcher or shutil.which("uvx")
     if command is None:
         raise OutlookError(
@@ -32,6 +34,7 @@ def server_entry(launcher: str | None = None) -> dict[str, JsonValue]:
             "--from",
             f"{release}/outlook_local_mcp-{__version__}-py3-none-any.whl",
             "outlook-local-mcp",
+            *(options or RuntimeOptions()).flags(),
         ],
     }
 

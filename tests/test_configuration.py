@@ -86,3 +86,11 @@ def test_entry_uses_absolute_launcher_and_versioned_release_constraints(tmp_path
     assert "--constraints" in entry["args"]
     assert "--from" in entry["args"]
     assert any(argument.endswith(".whl") for argument in entry["args"])
+
+
+def test_configuration_retains_explicit_capability_flags():
+    from outlook_local_mcp.client_config import server_entry
+    from outlook_local_mcp.models import RuntimeOptions
+
+    entry = server_entry("uvx", RuntimeOptions(enable_write_tools=True, enable_send=True))
+    assert entry["args"][-2:] == ["--enable-write-tools", "--enable-send"]

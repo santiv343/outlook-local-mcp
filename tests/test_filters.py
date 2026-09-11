@@ -3,11 +3,23 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 
 from outlook_local_mcp.errors import OutlookError
-from outlook_local_mcp.filters import date_range, metadata_matches, parse_date, restrict_filter
+from outlook_local_mcp.filters import (
+    date_range,
+    metadata_matches,
+    outlook_date,
+    parse_date,
+    restrict_filter,
+)
 from outlook_local_mcp.mail import summary
 from outlook_local_mcp.models import SearchArguments
 
 from .fakes import Mail
+
+
+def test_real_windows_regional_formatter_builds_filter():
+    instant = datetime(2026, 9, 1, 3, tzinfo=UTC)
+    assert outlook_date(instant)
+    assert restrict_filter(instant, None).startswith("@SQL=")
 
 
 @pytest.mark.parametrize(

@@ -2,11 +2,13 @@
 
 import sys
 
+from .accounts import account_person
 from .com_types import IFolder, INamespace, IOutlookApplication, IOutlookItem, IStore
 from .enums import EErrorCode, EToolName
 from .errors import OutlookError, com_error
 from .filters import date_range, metadata_matches, restrict_filter
 from .mail import detail, plain_body, summary
+from .metadata import collection_filters_match
 from .models import (
     EmailDetail,
     EmailSummary,
@@ -16,9 +18,11 @@ from .models import (
     Mailboxes,
     OutlookStatus,
     Page,
+    Person,
     ReadArguments,
     RecentArguments,
     SearchArguments,
+    WarningInfo,
 )
 from .outlook_constants import (
     INBOX_FOLDER,
@@ -29,12 +33,17 @@ from .outlook_constants import (
     RECEIVED_TIME_PROPERTY,
 )
 from .pagination import CursorStore, FolderSession, MailSession, scan_page, signature
+from .references import ReferenceStore
+from .sending import PreviewStore
 
 
 class Outlook:
     def __init__(self, application: IOutlookApplication | None = None) -> None:
         self.application = application
         self.cursors = CursorStore()
+        self.previews = PreviewStore()
+        self.references = ReferenceStore()
+        self.mutation_attempted = False
 
     def connect(self) -> IOutlookApplication:
         if self.application is not None:
@@ -63,6 +72,8 @@ class Outlook:
 
     def close(self) -> None:
         self.cursors.clear()
+        self.previews.clear()
+        self.references.clear()
         self.application = None
 
     def status(self) -> OutlookStatus:
@@ -84,15 +95,35 @@ class Outlook:
         namespace = self.namespace()
         default_id = namespace.DefaultStore.StoreID
         stores = namespace.Stores
+        accounts_by_store: dict[str, list[Person]] = {}
+        warnings = []
+        try:
+            accounts = namespace.Accounts
+            for index in range(1, accounts.Count + 1):
+                account = accounts.Item(index)
+                delivery = account.DeliveryStore
+                if delivery is not None:
+                    accounts_by_store.setdefault(delivery.StoreID, []).append(
+                        account_person(account)
+                    )
+        except Exception:
+            warnings.append(
+                WarningInfo(
+                    code="SENDING_ACCOUNTS_INCOMPLETE",
+                    message="Some sending accounts could not be listed.",
+                )
+            )
         return Mailboxes(
             items=[
                 Mailbox(
                     store_id=store.StoreID,
                     name=store.DisplayName,
                     is_default=store.StoreID == default_id,
+                    sending_accounts=accounts_by_store.get(store.StoreID, []),
                 )
                 for store in (stores.Item(index) for index in range(1, stores.Count + 1))
-            ]
+            ],
+            warnings=warnings,
         )
 
     def store(self, store_id: str) -> IStore:
@@ -179,6 +210,8 @@ class Outlook:
             email = summary(item, session.store_id, session.folder_id)
             if not metadata_matches(email, filters, after, before):
                 return None
+            if not collection_filters_match(item, filters):
+                return None
             needle = filters.query.casefold()
             if needle:
                 subject_match = needle in email.subject.casefold()
@@ -194,13 +227,18 @@ class Outlook:
         return scan_page(self.cursors, session, arguments.limit, project)
 
     def read(self, arguments: ReadArguments) -> EmailDetail:
-        self.store(arguments.store_id)
+        return detail(self.item(arguments.entry_id, arguments.store_id), arguments)
+
+    def item(self, entry_id: str, store_id: str) -> IOutlookItem:
+        self.store(store_id)
         try:
-            item = self.namespace().GetItemFromID(arguments.entry_id, arguments.store_id)
+            item = self.namespace().GetItemFromID(entry_id, store_id)
         except Exception as error:
             raise com_error(error, EErrorCode.ITEM_NOT_FOUND) from None
         if item is None:
             raise OutlookError(EErrorCode.ITEM_NOT_FOUND)
-        if item.Parent.StoreID != arguments.store_id:
+        if item.Parent.StoreID != store_id:
             raise OutlookError(EErrorCode.ITEM_NOT_FOUND)
-        return detail(item, arguments)
+        if item.Class != MAIL_ITEM_CLASS:
+            raise OutlookError(EErrorCode.INVALID_ARGUMENT, "The requested item is not an email.")
+        return item

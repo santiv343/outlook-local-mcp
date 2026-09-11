@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from .config import (
     DEFAULT_BODY_CHARACTERS,
     DEFAULT_PAGE_SIZE,
+    ENABLE_SEND_FLAG,
+    ENABLE_WRITE_FLAG,
     MAX_BODY_CHARACTERS,
     MAX_CURSOR_CHARACTERS,
     MAX_DATE_CHARACTERS,
@@ -20,6 +22,7 @@ TIdentifier = Annotated[str, Field(min_length=1, max_length=MAX_IDENTIFIER_CHARA
 TCursor = Annotated[str, Field(min_length=1, max_length=MAX_CURSOR_CHARACTERS)]
 TLimit = Annotated[int, Field(ge=1, le=MAX_PAGE_SIZE)]
 TItem = TypeVar("TItem")
+TImportance = Literal["low", "normal", "high"]
 
 
 class Arguments(BaseModel):
@@ -54,6 +57,10 @@ class SearchArguments(RecentArguments):
     before: Annotated[str, Field(max_length=MAX_DATE_CHARACTERS)] | None = None
     unread: bool | None = None
     has_attachments: bool | None = None
+    recipient: Annotated[str, Field(max_length=MAX_QUERY_CHARACTERS)] | None = None
+    category: Annotated[str, Field(max_length=MAX_QUERY_CHARACTERS)] | None = None
+    importance: TImportance | None = None
+    attachment_name: Annotated[str, Field(max_length=MAX_QUERY_CHARACTERS)] | None = None
 
 
 class ReadArguments(Arguments):
@@ -85,6 +92,7 @@ class Mailbox(BaseModel):
     store_id: str
     name: str
     is_default: bool
+    sending_accounts: list["Person"] = Field(default_factory=list)
 
 
 class Mailboxes(BaseModel):
@@ -105,7 +113,13 @@ class Person(BaseModel):
     email: str | None
 
 
-class EmailSummary(BaseModel):
+class MessageMetadata(BaseModel):
+    conversation_id: str | None = None
+    categories: list[str] | None = None
+    importance: TImportance | None = None
+
+
+class EmailSummary(MessageMetadata):
     entry_id: str
     store_id: str
     folder_id: str
@@ -144,14 +158,17 @@ class Attachment(BaseModel):
     size: int
 
 
-class EmailDetail(EmailSummary):
-    recipients: list[Recipient]
-    sent_at: str | None
+class BodyPage(BaseModel):
     body: str
     body_offset: int
     next_body_offset: int | None
     body_truncated: bool
     body_length: int
+
+
+class EmailDetail(EmailSummary, BodyPage):
+    recipients: list[Recipient]
+    sent_at: str | None
     attachments: list[Attachment]
     omitted_recipients: int = 0
     omitted_attachments: int = 0
@@ -176,3 +193,22 @@ TWorkerResponse = WorkerSuccess | WorkerFailure
 class ConfigurationResult(BaseModel):
     changed: bool
     backup_created: bool
+
+
+class RuntimeOptions(Arguments):
+    enable_write_tools: bool = False
+    enable_send: bool = False
+
+    @model_validator(mode="after")
+    def require_write_capability(self) -> "RuntimeOptions":
+        if self.enable_send and not self.enable_write_tools:
+            raise ValueError("--enable-send requires --enable-write-tools")
+        return self
+
+    def flags(self) -> list[str]:
+        result = []
+        if self.enable_write_tools:
+            result.append(ENABLE_WRITE_FLAG)
+        if self.enable_send:
+            result.append(ENABLE_SEND_FLAG)
+        return result

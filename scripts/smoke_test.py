@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import sys
+from datetime import datetime, timedelta
 from typing import Any
 
 from mcp import Client
@@ -15,6 +16,7 @@ EXPECTED_TOOLS = {
     "recent_emails",
     "search_emails",
     "read_email",
+    "read_conversation",
 }
 
 
@@ -35,7 +37,7 @@ async def run(command: list[str]) -> None:
         tools = await client.list_tools()
         assert {tool.name for tool in tools.tools} == EXPECTED_TOOLS
         assert all(tool.annotations and tool.annotations.read_only_hint for tool in tools.tools)
-        print("PASS discovery tools=6")
+        print(f"PASS discovery tools={len(EXPECTED_TOOLS)}")
         status = await call("outlook_status", {})
         assert status["available"]
         print("PASS outlook_status")
@@ -61,6 +63,17 @@ async def run(command: list[str]) -> None:
         )
         assert any(item["entry_id"] == reference["entry_id"] for item in search["items"])
         print("PASS known_subject_search")
+        received = datetime.fromisoformat(reference["received_at"])
+        dated = await call(
+            "search_emails",
+            {
+                "after": received.isoformat(),
+                "before": (received + timedelta(seconds=1)).isoformat(),
+                "limit": 5,
+            },
+        )
+        assert any(item["entry_id"] == reference["entry_id"] for item in dated["items"])
+        print("PASS real_date_filter_and_short_reference_reuse")
         identifiers = {"entry_id": reference["entry_id"], "store_id": reference["store_id"]}
         first = await call("read_email", {**identifiers, "body_limit": 128})
         assert first["unread"] == reference["unread"]
