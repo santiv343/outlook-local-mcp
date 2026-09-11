@@ -90,9 +90,10 @@ def draft_account(
     account_email: str | None = None,
     *,
     require_saved: bool = True,
+    require_native_account: bool = False,
 ) -> IAccount:
     account = item.SendUsingAccount
-    if account is None and account_email is None:
+    if account is None and (require_native_account or account_email is None):
         raise OutlookError(EErrorCode.UNSUPPORTED_COMPOSITION, "The draft has no sending account.")
     selected = select_account(
         namespace,

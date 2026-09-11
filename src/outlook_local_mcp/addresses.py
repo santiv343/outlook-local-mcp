@@ -4,6 +4,8 @@ from email.errors import HeaderParseError
 from email.headerregistry import Address
 
 from .com_types import IAddressEntry
+from .enums import EErrorCode
+from .errors import OutlookError, com_error
 from .outlook_constants import SMTP_ADDRESS_PROPERTY, SMTP_ADDRESS_TYPE
 
 
@@ -28,9 +30,13 @@ def smtp_address(value: object) -> str | None:
     return None
 
 
-def address_entry_email(entry: IAddressEntry | None) -> str | None:
+def address_entry_email(
+    entry: IAddressEntry | None, *, preserve_denials: bool = False
+) -> str | None:
     if entry is None:
         return None
+    denied = False
+    result = None
     try:
         if entry.Type == SMTP_ADDRESS_TYPE:
             return smtp_address(entry.Address)
@@ -41,8 +47,12 @@ def address_entry_email(entry: IAddressEntry | None) -> str | None:
                     address = smtp_address(exchange.PrimarySmtpAddress)
                     if address:
                         return address
-            except Exception:
+            except Exception as error:
+                denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
                 continue
-        return smtp_address(entry.PropertyAccessor.GetProperty(SMTP_ADDRESS_PROPERTY))
-    except Exception:
-        return None
+        result = smtp_address(entry.PropertyAccessor.GetProperty(SMTP_ADDRESS_PROPERTY))
+    except Exception as error:
+        denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
+    if preserve_denials and denied and result is None:
+        raise OutlookError(EErrorCode.ACCESS_DENIED)
+    return result

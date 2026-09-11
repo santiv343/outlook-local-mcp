@@ -31,6 +31,8 @@ def com_error(
     error: Exception, missing: EErrorCode = EErrorCode.OUTLOOK_UNAVAILABLE
 ) -> OutlookError:
     """Inspect numeric HRESULTs only; never forward an exception's text."""
+    if isinstance(error, OutlookError):
+        return error
     codes = {getattr(error, "hresult", None)}
     details = getattr(error, "excepinfo", None)
     if isinstance(details, tuple) and len(details) > EXCEPINFO_STATUS_INDEX:

@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from outlook_local_mcp.enums import EErrorCode
+from outlook_local_mcp.errors import OutlookError
 from outlook_local_mcp.models import SearchArguments
 from outlook_local_mcp.outlook import Outlook
 
@@ -79,3 +81,69 @@ def test_unused_collection_properties_are_not_read_and_missing_categories_are_in
 
     page = Outlook(Application([MissingCategories()])).emails(SearchArguments(category="unknown"))
     assert page.omitted == 1 and not page.coverage.evaluation_complete
+
+
+@pytest.mark.parametrize(
+    "field,property_name",
+    [
+        ("recipient", "Recipients"),
+        ("attachment_name", "Attachments"),
+        ("category", "Categories"),
+        ("importance", "Importance"),
+    ],
+)
+def test_general_required_metadata_denial_stops_search(field, property_name):
+    class DeniedProperty:
+        def __init__(self, index):
+            self.mail = Mail(EntryID=f"synthetic-denied-{index}")
+
+        def __getattr__(self, name):
+            if name == property_name:
+                raise ComFailure()
+            return getattr(self.mail, name)
+
+    arguments = SearchArguments(**{field: "high" if field == "importance" else "unknown"})
+    backend = Outlook(Application([DeniedProperty(index) for index in range(5)]))
+    with pytest.raises(OutlookError, check=lambda error: error.code == EErrorCode.ACCESS_DENIED):
+        backend.emails(arguments)
+
+
+@pytest.mark.parametrize("field", ["recipient", "attachment_name"])
+def test_partial_metadata_denial_keeps_proven_matches_but_stops_unmatched_search(field):
+    recipient = SimpleNamespace(
+        Name="Available", AddressEntry=SimpleNamespace(Type="SMTP", Address="person@example.com")
+    )
+    mails = [
+        Mail(
+            EntryID=f"synthetic-partial-{index}",
+            Recipients=Collection([ComFailure(), recipient]),
+            Attachments=Collection([ComFailure(), SimpleNamespace(FileName="Available.pdf")]),
+        )
+        for index in range(5)
+    ]
+    backend = Outlook(Application(mails))
+    assert len(backend.emails(SearchArguments(**{field: "available"})).items) == 5
+    with pytest.raises(OutlookError, check=lambda error: error.code == EErrorCode.ACCESS_DENIED):
+        backend.emails(SearchArguments(**{field: "unknown"}))
+
+
+def test_denied_recipient_smtp_resolution_stops_unmatched_search():
+    class DeniedAddress:
+        Type = "SMTP"
+
+        @property
+        def Address(self):
+            raise ComFailure()
+
+    recipient = SimpleNamespace(Name="Available", AddressEntry=DeniedAddress())
+    backend = Outlook(
+        Application(
+            [
+                Mail(EntryID=f"synthetic-address-{index}", Recipients=Collection([recipient]))
+                for index in range(5)
+            ]
+        )
+    )
+    assert len(backend.emails(SearchArguments(recipient="available")).items) == 5
+    with pytest.raises(OutlookError, check=lambda error: error.code == EErrorCode.ACCESS_DENIED):
+        backend.emails(SearchArguments(recipient="unknown"))

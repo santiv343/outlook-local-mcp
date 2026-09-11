@@ -153,3 +153,55 @@ async def test_dispatched_mutation_failure_is_unknown_and_never_retried(tmp_path
         assert (await owner.request(EToolName.OUTLOOK_STATUS, {}))["available"]
     finally:
         await owner.close()
+
+
+@pytest.mark.parametrize(
+    "failure,cleanup",
+    [("timeout", "wait"), ("crash", "wait"), ("cancel", "wait"), ("timeout", "kill")],
+)
+async def test_cleanup_failure_preserves_unknown_outcome_and_worker_ownership(
+    tmp_path, monkeypatch, failure, cleanup
+):
+    owner = supervisor(timeout=5)
+    await owner.request(EToolName.OUTLOOK_STATUS, {})
+    child = owner.process
+    marker = tmp_path / "dispatched"
+
+    async def failed_wait():
+        raise RuntimeError("synthetic-private-wait-failure")
+
+    def failed_kill():
+        raise RuntimeError("synthetic-private-kill-failure")
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(child, cleanup, failed_wait if cleanup == "wait" else failed_kill)
+            if failure == "timeout":
+                owner.timeout = 0.3
+            task = asyncio.create_task(
+                owner.request(
+                    EToolName.SEND_DRAFT,
+                    {"marker": str(marker), "crash": failure == "crash", "delay": 60},
+                )
+            )
+            await wait_until(marker.exists)
+            if failure == "cancel":
+                task.cancel()
+            with pytest.raises(
+                OutlookError,
+                check=lambda error: (
+                    error.code == EErrorCode.WRITE_OUTCOME_UNKNOWN and not error.retryable
+                ),
+            ):
+                await task
+            assert owner.closed and owner.process is child
+            assert owner.pending == 0 and not owner.lock.locked()
+            with pytest.raises(OutlookError):
+                await owner.request(EToolName.OUTLOOK_STATUS, {})
+            assert owner.process is child
+    finally:
+        await owner.close()
+        if child.returncode is None:
+            child.kill()
+        await child.wait()
+        assert child.returncode is not None and owner.process is None

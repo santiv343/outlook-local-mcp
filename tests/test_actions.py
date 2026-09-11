@@ -20,6 +20,7 @@ from outlook_local_mcp.sending import PreviewStore, prepare_send, send_draft
 from outlook_local_mcp.worker import handle_request
 
 from .action_fakes import Application, Draft
+from .fakes import ComFailure
 
 
 @pytest.fixture
@@ -286,3 +287,56 @@ def test_send_failure_is_unknown_consumes_preview_and_does_not_repeat(backend):
     assert response["error"]["code"] == "WRITE_OUTCOME_UNKNOWN"
     assert not response["error"]["retryable"] and not backend.previews.previews
     assert item.events.count("send-attempt") == 1
+
+
+def test_account_lost_after_assignment_readback_never_sends(backend, monkeypatch):
+    item, arguments = make_draft(backend)
+    preview = prepare_send(backend, arguments)
+
+    def transient_account(draft):
+        account = draft.__dict__["SendUsingAccount"]
+        draft.__dict__["SendUsingAccount"] = None
+        return account
+
+    monkeypatch.setattr(
+        Draft,
+        "SendUsingAccount",
+        property(
+            transient_account,
+            lambda draft, account: draft.__dict__.__setitem__("SendUsingAccount", account),
+        ),
+        raising=False,
+    )
+    with pytest.raises(OutlookError):
+        send_draft(backend, confirmed(arguments, preview))
+    assert "send" not in item.events and not backend.previews.previews
+
+
+@pytest.mark.parametrize(
+    "property_value,allowed",
+    [
+        (ComFailure(), False),
+        (ComFailure(0x8004010F), True),
+        (ComFailure(0x80004005), False),
+        ("unresolved-internal-name", False),
+        ("bad@@example.com", False),
+        (123, False),
+    ],
+)
+def test_represented_from_only_falls_back_when_property_is_absent(backend, property_value, allowed):
+    item, arguments = make_draft(backend)
+    item.SentOnBehalfOfName = "First"
+
+    def read_property(name):
+        if isinstance(property_value, Exception):
+            raise property_value
+        return property_value
+
+    item.PropertyAccessor.GetProperty = read_property
+    if allowed:
+        assert prepare_send(backend, arguments).sender.email == "first@example.com"
+    else:
+        with pytest.raises(OutlookError):
+            prepare_send(backend, arguments)
+        assert not backend.previews.previews
+    assert item.events == ["save"]

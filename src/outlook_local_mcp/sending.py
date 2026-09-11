@@ -4,7 +4,6 @@ import hashlib
 import secrets
 import time
 from collections.abc import Callable
-from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from .accounts import (
@@ -22,7 +21,7 @@ from .action_models import (
     SendPreview,
     SendResult,
 )
-from .addresses import address_entry_email, smtp_address
+from .addresses import address_entry_email, explicit_smtp
 from .com_types import IOutlookItem
 from .config import (
     CURSOR_RANDOM_BYTES,
@@ -31,7 +30,7 @@ from .config import (
     SEND_PREVIEW_TTL_SECONDS,
 )
 from .enums import EErrorCode
-from .errors import OutlookError
+from .errors import OutlookError, com_error
 from .mail import plain_body, timestamp
 from .models import Person
 from .outlook_constants import PLAIN_TEXT_FORMAT, REPRESENTING_SMTP_PROPERTY
@@ -89,11 +88,46 @@ class PreviewStore:
         return value
 
 
+def represented_smtp(item: IOutlookItem) -> str | None:
+    try:
+        value = item.PropertyAccessor.GetProperty(REPRESENTING_SMTP_PROPERTY)
+    except Exception as error:
+        mapped = com_error(error, EErrorCode.ITEM_NOT_FOUND)
+        if mapped.code == EErrorCode.ITEM_NOT_FOUND:
+            return None
+        if mapped.code == EErrorCode.ACCESS_DENIED:
+            raise mapped from None
+        raise OutlookError(
+            EErrorCode.UNSUPPORTED_COMPOSITION, "The represented From identity is inaccessible."
+        ) from None
+    if value is None or value == "":
+        return None
+    try:
+        if not isinstance(value, str):
+            raise ValueError
+        return explicit_smtp(value)
+    except ValueError:
+        raise OutlookError(
+            EErrorCode.UNSUPPORTED_COMPOSITION, "The represented From SMTP address is invalid."
+        ) from None
+
+
 def review(
-    backend: "Outlook", item: IOutlookItem, account_email: str, *, require_saved: bool = True
+    backend: "Outlook",
+    item: IOutlookItem,
+    account_email: str,
+    *,
+    require_saved: bool = True,
+    require_native_account: bool = False,
 ) -> DraftReview:
     account = account_person(
-        draft_account(backend.namespace(), item, account_email, require_saved=require_saved)
+        draft_account(
+            backend.namespace(),
+            item,
+            account_email,
+            require_saved=require_saved,
+            require_native_account=require_native_account,
+        )
     )
     if item.BodyFormat != PLAIN_TEXT_FORMAT or item.Attachments.Count:
         raise OutlookError(
@@ -108,11 +142,7 @@ def review(
             "This body exceeds the complete preview limit. Review and send it in Outlook.",
         )
     represented_name = item.SentOnBehalfOfName
-    represented_address = None
-    with suppress(Exception):
-        represented_address = smtp_address(
-            item.PropertyAccessor.GetProperty(REPRESENTING_SMTP_PROPERTY)
-        )
+    represented_address = represented_smtp(item)
     if represented_name:
         recipient = backend.namespace().CreateRecipient(represented_name)
         if not recipient.Resolve():
@@ -181,7 +211,13 @@ def send_draft(backend: "Outlook", arguments: SendArguments) -> SendResult:
     account = select_account(backend.namespace(), arguments.store_id, confirmation.account_email)
     backend.mutation_attempted = True
     set_sending_account(item, account)
-    assigned = review(backend, item, confirmation.account_email, require_saved=False)
+    assigned = review(
+        backend,
+        item,
+        confirmation.account_email,
+        require_saved=False,
+        require_native_account=True,
+    )
     if assigned.model_dump(exclude={"draft_modified_at"}) != approved.model_dump(
         exclude={"draft_modified_at"}
     ):

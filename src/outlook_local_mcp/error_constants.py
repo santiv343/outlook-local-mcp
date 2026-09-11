@@ -2,6 +2,9 @@
 
 from .enums import EErrorCode
 
+CATEGORIES_ACCESS_DENIED_WARNING = "CATEGORIES_ACCESS_DENIED"
+IMPORTANCE_ACCESS_DENIED_WARNING = "IMPORTANCE_ACCESS_DENIED"
+
 ERRORS: dict[EErrorCode, tuple[str, bool]] = {
     EErrorCode.REFERENCE_EXPIRED: (
         "This short reference expired or belongs to an earlier worker. "

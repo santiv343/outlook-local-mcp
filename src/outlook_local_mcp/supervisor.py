@@ -75,7 +75,7 @@ class Supervisor:
         return self.process
 
     async def _stop(self) -> None:
-        process, self.process = self.process, None
+        process = self.process
         if process is None:
             return
         if process.returncode is None:
@@ -87,6 +87,16 @@ class Supervisor:
             raise OutlookError(
                 EErrorCode.INTERNAL_ERROR, "The worker did not exit within the cleanup deadline."
             ) from None
+        if self.process is process:
+            self.process = None
+
+    async def _stop_after_failure(self) -> None:
+        try:
+            await self._stop()
+        except (Exception, asyncio.CancelledError):
+            # Preserve the operation's outcome and retain ownership for close().
+            # Never start another COM worker while cleanup is unconfirmed.
+            self.closed = True
 
     async def close(self) -> None:
         self.closed = True
@@ -130,7 +140,7 @@ class Supervisor:
                 return response.result
         except TimeoutError:
             if acquired:
-                await self._stop()
+                await self._stop_after_failure()
             raise OutlookError(
                 EErrorCode.WRITE_OUTCOME_UNKNOWN
                 if dispatched_mutation
@@ -138,7 +148,7 @@ class Supervisor:
             ) from None
         except asyncio.CancelledError:
             if acquired:
-                await self._stop()
+                await self._stop_after_failure()
             if dispatched_mutation:
                 raise OutlookError(EErrorCode.WRITE_OUTCOME_UNKNOWN) from None
             raise
@@ -146,7 +156,7 @@ class Supervisor:
             raise
         except Exception:
             if acquired:
-                await self._stop()
+                await self._stop_after_failure()
             raise OutlookError(
                 EErrorCode.WRITE_OUTCOME_UNKNOWN
                 if dispatched_mutation

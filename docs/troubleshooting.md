@@ -32,6 +32,11 @@ The server never starts or closes Outlook. Different Windows users, sessions or
 elevation levels may prevent access to a running instance. This project does not
 require administrator rights or changes to PowerShell execution policy.
 
+If terminating a failed worker also fails, the server retains that process and
+stops accepting operations until the MCP server restarts. A dispatched mutation
+still returns `WRITE_OUTCOME_UNKNOWN`; cleanup failure never makes it safe to retry.
+Inspect the result in Outlook before restarting the client or repeating an action.
+
 If corporate policy blocks scripts/downloads, use an approved uv installation and
 manually merge client configuration. Developers with an approved Python runtime
 can use the checkout instructions. Do not weaken corporate controls.

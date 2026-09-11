@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta, tzinfo
 
 from .enums import EErrorCode
+from .error_constants import CATEGORIES_ACCESS_DENIED_WARNING, IMPORTANCE_ACCESS_DENIED_WARNING
 from .errors import OutlookError
 from .models import EmailSummary, SearchArguments
 from .outlook_constants import (
@@ -102,14 +103,26 @@ def metadata_matches(
         return False
     if arguments.category is not None:
         if email.categories is None:
-            raise OutlookError(EErrorCode.METADATA_UNAVAILABLE)
+            raise OutlookError(
+                EErrorCode.ACCESS_DENIED
+                if any(
+                    warning.code == CATEGORIES_ACCESS_DENIED_WARNING for warning in email.warnings
+                )
+                else EErrorCode.METADATA_UNAVAILABLE
+            )
         if arguments.category.casefold() not in {
             category.casefold() for category in email.categories
         }:
             return False
     if arguments.importance is not None:
         if email.importance is None:
-            raise OutlookError(EErrorCode.METADATA_UNAVAILABLE)
+            raise OutlookError(
+                EErrorCode.ACCESS_DENIED
+                if any(
+                    warning.code == IMPORTANCE_ACCESS_DENIED_WARNING for warning in email.warnings
+                )
+                else EErrorCode.METADATA_UNAVAILABLE
+            )
         if email.importance != arguments.importance:
             return False
     if arguments.sender:

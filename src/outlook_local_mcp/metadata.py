@@ -4,7 +4,8 @@ from .addresses import address_entry_email
 from .com_types import IOutlookItem
 from .config import MAX_ATTACHMENTS, MAX_RECIPIENTS
 from .enums import EErrorCode
-from .errors import OutlookError
+from .error_constants import CATEGORIES_ACCESS_DENIED_WARNING, IMPORTANCE_ACCESS_DENIED_WARNING
+from .errors import OutlookError, com_error
 from .models import MessageMetadata, SearchArguments, WarningInfo
 from .outlook_constants import IMPORTANCE_VALUES, WINDOWS_LIST_SEPARATOR, WINDOWS_REGIONAL_SETTINGS
 
@@ -33,21 +34,32 @@ def message_metadata(item: IOutlookItem) -> tuple[MessageMetadata, list[WarningI
         )
     try:
         result.categories = category_names(item)
-    except Exception:
+    except Exception as error:
         warnings.append(
-            WarningInfo(code="CATEGORIES_UNAVAILABLE", message="Category metadata unavailable.")
+            WarningInfo(
+                code=CATEGORIES_ACCESS_DENIED_WARNING
+                if com_error(error).code == EErrorCode.ACCESS_DENIED
+                else "CATEGORIES_UNAVAILABLE",
+                message="Category metadata unavailable.",
+            )
         )
     try:
         result.importance = IMPORTANCE_VALUES[item.Importance]
-    except Exception:
+    except Exception as error:
         warnings.append(
-            WarningInfo(code="IMPORTANCE_UNAVAILABLE", message="Importance unavailable.")
+            WarningInfo(
+                code=IMPORTANCE_ACCESS_DENIED_WARNING
+                if com_error(error).code == EErrorCode.ACCESS_DENIED
+                else "IMPORTANCE_UNAVAILABLE",
+                message="Importance unavailable.",
+            )
         )
     return result, warnings
 
 
 def recipient_matches(item: IOutlookItem, needle: str) -> bool:
     incomplete = False
+    denied = False
     try:
         recipients = item.Recipients
         count = recipients.Count
@@ -55,30 +67,35 @@ def recipient_matches(item: IOutlookItem, needle: str) -> bool:
         for index in range(1, min(count, MAX_RECIPIENTS) + 1):
             try:
                 recipient = recipients.Item(index)
-            except Exception:
+            except Exception as error:
                 incomplete = True
+                denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
                 continue
             try:
                 if needle in recipient.Name.casefold():
                     return True
-            except Exception:
+            except Exception as error:
                 incomplete = True
+                denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
             try:
-                email = address_entry_email(recipient.AddressEntry)
+                email = address_entry_email(recipient.AddressEntry, preserve_denials=True)
                 if email is not None and needle in email.casefold():
                     return True
                 incomplete = incomplete or email is None
-            except Exception:
+            except Exception as error:
                 incomplete = True
-    except Exception:
+                denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
+    except Exception as error:
         incomplete = True
+        denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
     if incomplete:
-        raise OutlookError(EErrorCode.METADATA_UNAVAILABLE)
+        raise OutlookError(EErrorCode.ACCESS_DENIED if denied else EErrorCode.METADATA_UNAVAILABLE)
     return False
 
 
 def attachment_matches(item: IOutlookItem, needle: str) -> bool:
     incomplete = False
+    denied = False
     try:
         attachments = item.Attachments
         count = attachments.Count
@@ -87,12 +104,14 @@ def attachment_matches(item: IOutlookItem, needle: str) -> bool:
             try:
                 if needle in attachments.Item(index).FileName.casefold():
                     return True
-            except Exception:
+            except Exception as error:
                 incomplete = True
-    except Exception:
+                denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
+    except Exception as error:
         incomplete = True
+        denied = denied or com_error(error).code == EErrorCode.ACCESS_DENIED
     if incomplete:
-        raise OutlookError(EErrorCode.METADATA_UNAVAILABLE)
+        raise OutlookError(EErrorCode.ACCESS_DENIED if denied else EErrorCode.METADATA_UNAVAILABLE)
     return False
 
 

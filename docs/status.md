@@ -49,9 +49,8 @@ unknown mutation outcomes, exact send previews, cross-store traversal and quoted
 reply preservation. The plan gate is approved; implementation has begun on the
 feature branch. Public clients continue to use the verified v0.1.0 release.
 
-Current v0.2 evidence: all 93 tests passed, followed by 31 passing targeted tests
-including two additional mutation-failure cases. Lint, strict types, formatting and
-package build passed. Real MCP conversation traversal/continuation, combined available
+Current v0.2 evidence: all 113 tests passed on Python 3.11 and 3.12. Lint, strict
+types, formatting and package build passed. Real MCP conversation traversal/continuation, combined available
 metadata filters, draft creation, complete send preview, opening, native reply draft
 and original read-state preservation passed. Four test drafts remain in Outlook;
 no live send was attempted. Submission and failure recovery are simulated.
@@ -66,8 +65,14 @@ real MCP date search. Short references and metadata-first guidance are implement
 after independent challenge. A real date search and subsequent short-reference read
 passed. Synthetic twenty-message JSON fell from 25,430 to 7,076 bytes (72.2%); tokens
 were not measured. No supplied mailbox transcript or personal content is stored in
-the repository. Exact implementation review and public v0.2 release verification
-remain pending; local clients still point to v0.1.0 until the new release is verified.
+the repository. Initial exact implementation review requested four corrections:
+require the actual native account after assignment, reject inaccessible represented
+From identities, preserve unknown mutation outcomes when worker cleanup fails, and
+retain access-denied classification for required metadata filters. These corrections
+have regression coverage. A real MCP preview of an existing synthetic draft passed
+after correction; no additional draft was created or submitted. Correction review
+and public v0.2 release verification remain pending; local clients still point to
+v0.1.0 until the new release is verified.
 
 Research and specification challenge were required and completed for MCP version,
 COM, filters, process ownership and distribution. Independent implementation review
