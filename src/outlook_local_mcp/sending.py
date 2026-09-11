@@ -33,7 +33,11 @@ from .enums import EErrorCode
 from .errors import OutlookError, com_error, is_missing_property
 from .mail import plain_body, timestamp
 from .models import Person
-from .outlook_constants import PLAIN_TEXT_FORMAT, REPRESENTING_SMTP_PROPERTY
+from .outlook_constants import (
+    MODIFIED_TIME_DASL_PROPERTY,
+    PLAIN_TEXT_FORMAT,
+    REPRESENTING_SMTP_PROPERTY,
+)
 
 if TYPE_CHECKING:
     from .outlook import Outlook
@@ -178,7 +182,7 @@ def review(
         recipients=resolved_recipients(item),
         subject=item.Subject,
         body=body,
-        draft_modified_at=timestamp(item.LastModificationTime),
+        draft_modified_at=timestamp(item.PropertyAccessor.GetProperty(MODIFIED_TIME_DASL_PROPERTY)),
     )
 
 

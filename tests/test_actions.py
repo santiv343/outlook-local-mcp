@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -16,6 +17,10 @@ from outlook_local_mcp.enums import EErrorCode
 from outlook_local_mcp.errors import OutlookError
 from outlook_local_mcp.models import RuntimeOptions
 from outlook_local_mcp.outlook import Outlook
+from outlook_local_mcp.outlook_constants import (
+    MODIFIED_TIME_DASL_PROPERTY,
+    REPRESENTING_SMTP_PROPERTY,
+)
 from outlook_local_mcp.sending import PreviewStore, prepare_send, send_draft
 from outlook_local_mcp.worker import handle_request
 
@@ -45,6 +50,24 @@ def confirmed(arguments, preview):
         store_id=arguments.store_id,
         confirmation_token=preview.confirmation_token,
     )
+
+
+def test_preview_uses_utc_modified_time_and_rejects_a_new_storage_revision(backend):
+    item, arguments = make_draft(backend)
+    stored = datetime(2026, 1, 1, 2, 59, 59, 123000, tzinfo=UTC)
+    item.LastModificationTime = stored - timedelta(hours=3)
+    previous = item.PropertyAccessor.GetProperty
+
+    def property_value(name):
+        return stored if name == MODIFIED_TIME_DASL_PROPERTY else previous(name)
+
+    item.PropertyAccessor.GetProperty = property_value
+    preview = prepare_send(backend, arguments)
+    assert datetime.fromisoformat(preview.draft_modified_at) == stored
+    stored += timedelta(microseconds=1000)
+    with pytest.raises(OutlookError, check=lambda error: error.code == EErrorCode.DRAFT_CHANGED):
+        send_draft(backend, confirmed(arguments, preview))
+    assert item.events == ["save"]
 
 
 def test_draft_selects_account_and_preserves_recipient_roles_without_sending(backend):
@@ -329,8 +352,11 @@ def test_account_lost_after_assignment_readback_never_sends(backend, monkeypatch
 def test_represented_from_only_falls_back_when_property_is_absent(backend, property_value, allowed):
     item, arguments = make_draft(backend)
     item.SentOnBehalfOfName = "First"
+    original = item.PropertyAccessor.GetProperty
 
     def read_property(name):
+        if name != REPRESENTING_SMTP_PROPERTY:
+            return original(name)
         if isinstance(property_value, Exception):
             raise property_value
         return property_value
@@ -368,8 +394,11 @@ def test_property_absence_requires_unambiguous_numeric_status(
     item.SentOnBehalfOfName = represented_name
     error = ComFailure(status)
     error.excepinfo = details
+    original = item.PropertyAccessor.GetProperty
 
     def read_property(name):
+        if name != REPRESENTING_SMTP_PROPERTY:
+            return original(name)
         raise error
 
     item.PropertyAccessor.GetProperty = read_property

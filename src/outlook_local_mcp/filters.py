@@ -57,10 +57,12 @@ def outlook_date(value: datetime) -> str:
     """Use Windows regional formatting, in UTC, without seconds."""
     import win32api
 
-    naive = value.astimezone(UTC).replace(tzinfo=None)
+    # pywin32 converts datetime arguments to UTC before extracting SYSTEMTIME fields.
+    # A naive value would be interpreted as local and shift the already-UTC boundary.
+    utc_value = value.astimezone(UTC)
     locale = win32api.GetUserDefaultLCID()
-    day = win32api.GetDateFormat(locale, WINDOWS_DATE_SHORTDATE, naive)
-    time = win32api.GetTimeFormat(locale, WINDOWS_TIME_NOSECONDS, naive)
+    day = win32api.GetDateFormat(locale, WINDOWS_DATE_SHORTDATE, utc_value)
+    time = win32api.GetTimeFormat(locale, WINDOWS_TIME_NOSECONDS, utc_value)
     return f"{day} {time}"
 
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "outlook-local-mcp"
-version = "0.2.0"
+version = "0.2.1"
 description = "Local classic Outlook MCP server with opt-in drafts and reviewed sending"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -49,4 +49,3 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-

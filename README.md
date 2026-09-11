@@ -25,8 +25,8 @@ see [client setup](docs/clients.md) and [tested integrations](docs/status.md).
       "command": "uvx",
       "args": [
         "--python", "3.12",
-        "--constraints", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0/constraints.txt",
-        "--from", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0/outlook_local_mcp-0.2.0-py3-none-any.whl",
+        "--constraints", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.1/constraints.txt",
+        "--from", "https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.1/outlook_local_mcp-0.2.1-py3-none-any.whl",
         "outlook-local-mcp"
       ]
     }
@@ -50,10 +50,10 @@ remote containers and cloud chats cannot directly access this Windows COM sessio
 In PowerShell, define the versioned command once:
 
 ```powershell
-$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0'
+$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.1'
 $serverArgs = @(
   '--python', '3.12', '--constraints', "$release/constraints.txt",
-  '--from', "$release/outlook_local_mcp-0.2.0-py3-none-any.whl",
+  '--from', "$release/outlook_local_mcp-0.2.1-py3-none-any.whl",
   'outlook-local-mcp'
 )
 uvx @serverArgs doctor

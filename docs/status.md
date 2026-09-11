@@ -1,5 +1,31 @@
 # Verification status
 
+## Current work: live use cases and timestamp correction
+
+A real, explicitly authorized synthetic self-send through public v0.2.0 was
+submitted once and observed in both Sent Items and the Inbox with matching content.
+Replay of its confirmation was rejected. A transient native observation failure
+stopped the first run; read-only observations confirmed delivery before continuation.
+No second transmission has been attempted yet.
+
+The continuation exposed a date defect: Outlook's local Object Model wall time
+arrives with a UTC label through COM, while the underlying UTC MAPI property differs
+by the local offset. Recent-hour searches can therefore discard received messages.
+The repair now uses the documented UTC properties for received, sent and modified
+timestamps. A second real check exposed another conversion in the Windows formatter:
+removing timezone information shifted an already-UTC boundary again. The bounded
+plan was revisited to verify the complete storage/filter/comparison chain. Both
+boundaries are corrected, with real inclusive/exclusive millisecond checks passing.
+The next gate is exact implementation review, then the remaining live draft/reply/
+conversation cases from the existing message. Do not restart the original self-send.
+The remaining transmission budget is one synthetic reply.
+
+The read-only release smoke passed before the repair. All 147 tests now pass on
+Python 3.11 and 3.12; lint, formatting, strict types and package builds also pass.
+A fresh Codex session found the synthetic message with one Outlook search
+and no body calls; it also made two generic MCP resource-discovery calls. These
+checks do not establish that the remaining live cases or final release are verified.
+
 Target: a public Windows Outlook MCP package for local stdio clients, read-only
 by default with opt-in actions and automatic Python provisioning through uvx.
 

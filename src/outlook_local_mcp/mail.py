@@ -1,13 +1,12 @@
 """Read-only mapping from documented Outlook properties into public models."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from .addresses import address_entry_email, smtp_address
 from .com_types import IOutlookItem
 from .config import MAX_ATTACHMENTS, MAX_RECIPIENTS
 from .enums import EErrorCode, ERecipientKind
 from .errors import OutlookError, com_error
-from .filters import local_timezone
 from .metadata import message_metadata
 from .models import (
     Attachment,
@@ -22,19 +21,21 @@ from .models import (
 from .outlook_constants import (
     HEADER_ONLY,
     MAIL_ITEM_CLASS,
+    RECEIVED_TIME_DASL_PROPERTY,
     RECIPIENT_KINDS,
+    SENT_TIME_DASL_PROPERTY,
     SMTP_ADDRESS_TYPE,
 )
 
 
-def timestamp(value: datetime) -> str:
+def timestamp(value: object) -> str:
+    """Serialize a documented UTC MAPI date, never a local Object Model date."""
     if not isinstance(value, datetime):
         raise OutlookError(
-            EErrorCode.OUTLOOK_UNAVAILABLE, "Outlook did not provide a valid message date."
+            EErrorCode.METADATA_UNAVAILABLE, "Outlook did not provide a valid UTC message date."
         )
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=local_timezone())
-    return value.isoformat()
+    # VT_DATE has no timezone. pywin32's attached tzinfo does not identify its source.
+    return value.replace(tzinfo=UTC).isoformat()
 
 
 def sender(item: IOutlookItem) -> tuple[Person, list[WarningInfo]]:
@@ -72,7 +73,7 @@ def summary(item: IOutlookItem, store_id: str, folder_id: str) -> EmailSummary:
         folder_id=folder_id,
         subject=item.Subject,
         sender=person,
-        received_at=timestamp(item.ReceivedTime),
+        received_at=timestamp(item.PropertyAccessor.GetProperty(RECEIVED_TIME_DASL_PROPERTY)),
         unread=item.UnRead,
         has_attachments=item.Attachments.Count > 0,
         warnings=warnings + metadata_warnings,
@@ -164,7 +165,8 @@ def detail(item: IOutlookItem, arguments: ReadArguments) -> EmailDetail:
             )
         )
     try:
-        sent_at = timestamp(item.SentOn)
+        sent_value = item.PropertyAccessor.GetProperty(SENT_TIME_DASL_PROPERTY)
+        sent_at = None if sent_value is None and not item.Sent else timestamp(sent_value)
     except Exception:
         sent_at = None
         warnings.append(WarningInfo(code="SENT_DATE_UNAVAILABLE", message="Sent date unavailable."))
