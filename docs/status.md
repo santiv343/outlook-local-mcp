@@ -1,5 +1,61 @@
 # Verification status
 
+## v0.2.1 live validation
+
+Implementation reviewed at `9f793a89b8d24eafb97e7af46157ce064c21d320`.
+All 147 tests passed on Python 3.11 and 3.12; lint, formatting, strict types and
+package builds passed. Independent review ran 99 targeted tests, all passing.
+
+The expanded real MCP journey exercised all twelve tools on Windows 11 with
+classic Outlook and one configured account. Every send used a complete, verified
+self-only preview under explicit authorization. The original was sent through
+public v0.2.0; the remaining journey, including the reply submission, used the
+reviewed 0.2.1 implementation. Native Outlook observations confirmed two Sent Items
+and two Inbox deliveries with matching complete content. Two additional synthetic
+drafts remain: an attachment/metadata fixture and an unsent reply-all. No existing
+personal message was modified, and the original test message retained its read state.
+
+| Journey | Real result |
+| --- | --- |
+| Capability discovery | 7 read tools, 10 with writes, 12 with sending |
+| Mailboxes, folders and recent mail | Default/explicit Inbox, child folders, continuation and duplicate suppression passed |
+| Literal search | Subject, body, combined text, case, punctuation and Unicode passed |
+| Metadata filters | Sender, recipient, unread, attachment presence/name, category and importance passed |
+| Date filters | Local dates and native UTC inclusive/exclusive millisecond boundaries passed |
+| Body reading | Default 2,000 characters, continuation, exact end and invalid offsets passed |
+| Drafts and opening | Explicit/default account, To/Cc/Bcc roles, attachment metadata and exact native Inspector passed |
+| Send confirmation | Replaced/reused tokens, wrong target, changed draft and unsupported composition were rejected |
+| Reply and reply-all | Quotation preserved; reply delivered; reply-all saved without sending |
+| Conversation | Four native entries traversed without duplicates, including the exact received reply |
+| Errors and restart | Invalid arguments, missing item, cursor mismatch/reuse, expired references and rediscovery passed |
+| Shutdown | MCP client contexts closed without a protocol or cleanup error |
+
+The live run uncovered two timezone conversions. Local Object Model wall times
+were labeled UTC; stripping timezone information before Windows formatting then
+shifted filter boundaries again. Earlier checks based on the server's own dates
+could miss these errors together. The repaired chain uses documented UTC storage
+properties and aware UTC formatter arguments. Independent native storage values
+and exact-boundary searches verified the correction. Synthetic cases also cover
+repeated daylight-saving wall times and positive/negative timezone offsets.
+
+One early native observation failed transiently after submission. The run stopped;
+read-only observations established delivery before continuation, and the original
+was never resubmitted. Observation failures now retain bounded diagnostic metadata.
+A malformed native identifier produced only a generic COM exception and therefore
+`OUTLOOK_UNAVAILABLE`; the existing synthetic missing-item fixture correctly returned
+`ITEM_NOT_FOUND`. This diagnostic distinction remains a limitation, without guessing
+from localized exception text. Short references returned by the tools avoid manually
+constructing native identifiers.
+
+A fresh Codex session found the original synthetic message using one Outlook search,
+without body calls. It also made two generic MCP resource-discovery calls. Only
+operation names, counts, sizes and completion metadata were retained. Real validation
+does not cover another account/store, another Outlook build, Windows 10, or every AI
+client. Blocked COM, denials, cancellation, resource limits and uncertain writes remain
+covered by synthetic and real-subprocess tests, not induced in the live mailbox.
+
+Publication, fresh public installation and local client update are the remaining gates.
+
 Target: a public Windows Outlook MCP package for local stdio clients, read-only
 by default with opt-in actions and automatic Python provisioning through uvx.
 

@@ -32,6 +32,13 @@ The server never starts or closes Outlook. Different Windows users, sessions or
 elevation levels may prevent access to a running instance. This project does not
 require administrator rights or changes to PowerShell execution policy.
 
+If Outlook has just opened and still reports `OUTLOOK_UNAVAILABLE`, switch to
+another application once, then retry `outlook_status`. Office can postpone
+registering its running COM object until it loses focus. This startup condition
+was reproduced during live validation; switching focus restored access without
+changing Outlook settings or dismissing reminders. See Microsoft's
+[running Office instance guidance](https://learn.microsoft.com/en-us/previous-versions/office/troubleshoot/office-developer/use-visual-c-automate-run-program-instance).
+
 If terminating a failed worker also fails, the server retains that process and
 stops accepting operations until the MCP server restarts. A dispatched mutation
 still returns `WRITE_OUTCOME_UNKNOWN`; cleanup failure never makes it safe to retry.
@@ -50,3 +57,10 @@ Version 0.2 fixes a date-search bug in 0.1.0: Windows formatting constants were
 looked up in a module that does not expose them. This could report Outlook unavailable
 even while status and recent-mail calls worked. Update to the current version;
 the regression now exercises the real Windows formatter and real MCP date search.
+
+Version 0.2.1 fixes two timezone conversions that could omit mail from recent-hour
+or midnight-boundary searches. It reads received, sent and modified dates from
+their UTC MAPI properties and keeps timezone information through Windows filter
+formatting. Earlier checks based only on the server's own reported dates could
+miss the combined error. The correction was checked against native UTC storage
+and inclusive/exclusive millisecond boundaries on a real received test message.

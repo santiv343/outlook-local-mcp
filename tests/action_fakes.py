@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from outlook_local_mcp.outlook_constants import DRAFTS_FOLDER
 
-from .fakes import Collection, ComFailure, Folder, Mail
+from .fakes import Collection, ComFailure, Folder, Mail, property_accessor
 
 
 class Recipient:
@@ -39,7 +39,7 @@ class Draft:
         self.Sent = False
         self.SentOnBehalfOfName = ""
         self.Recipients = Recipients()
-        self.PropertyAccessor = SimpleNamespace(GetProperty=lambda name: "")
+        self.PropertyAccessor = property_accessor(self)
         self.GetInspector = SimpleNamespace(Activate=self.activate)
         self.events = []
         self._oleobj_ = SimpleNamespace(GetIDsOfNames=self.member_id, Invoke=self.put_reference)

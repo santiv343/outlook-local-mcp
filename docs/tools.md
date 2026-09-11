@@ -102,6 +102,12 @@ Outlook's AQS operators (`OR`, `NOT`, field syntax) are not interpreted. Use the
 explicit filter parameters. Recipient/attachment properties are read for filtering
 only when requested, with bounded traversal and inconclusive-omission handling.
 
+Received, sent and draft-modification timestamps come from Outlook's documented
+UTC MAPI properties. Object Model dates are local wall times despite the timezone
+label supplied by COM. The server preserves UTC through Windows regional filter
+formatting and applies exact inclusive/exclusive boundaries in Python. An unsent
+draft can have `sent_at: null`; an inaccessible sent date is reported with a warning.
+
 Per call: at most 1,000 candidates or ten seconds of cooperative traversal,
 protected by a 30-second external deadline. Responses include:
 

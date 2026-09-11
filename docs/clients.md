@@ -7,11 +7,11 @@ not directly share that COM session. All supported clients use the same server.
 Install uv once, then define these PowerShell variables:
 
 ```powershell
-$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.0'
+$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.1'
 $launcher = (Get-Command uvx).Source
 $serverArgs = @(
   '--python', '3.12', '--constraints', "$release/constraints.txt",
-  '--from', "$release/outlook_local_mcp-0.2.0-py3-none-any.whl",
+  '--from', "$release/outlook_local_mcp-0.2.1-py3-none-any.whl",
   'outlook-local-mcp'
 )
 & $launcher @serverArgs doctor

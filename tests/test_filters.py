@@ -22,6 +22,38 @@ def test_real_windows_regional_formatter_builds_filter():
     assert restrict_filter(instant, None).startswith("@SQL=")
 
 
+def test_real_windows_formatter_preserves_utc_clock_fields():
+    import win32api
+
+    from outlook_local_mcp.outlook_constants import WINDOWS_DATE_SHORTDATE, WINDOWS_TIME_NOSECONDS
+
+    instant = datetime(2026, 1, 15, 23, 45, 12, tzinfo=UTC)
+    locale = win32api.GetUserDefaultLCID()
+    day = win32api.GetDateFormat(locale, WINDOWS_DATE_SHORTDATE, instant)
+    clock = win32api.GetTimeFormat(locale, WINDOWS_TIME_NOSECONDS, instant)
+    assert outlook_date(instant) == f"{day} {clock}"
+
+
+@pytest.mark.parametrize("offset", [-5, 3])
+def test_formatter_does_not_let_native_marshalling_reinterpret_utc_as_local(monkeypatch, offset):
+    import win32api
+
+    local = timezone(timedelta(hours=offset))
+
+    def native_format(value, pattern):
+        # pywin32's SYSTEMTIME conversion interprets a naive datetime as local.
+        aware = value if value.tzinfo is not None else value.replace(tzinfo=local)
+        return aware.astimezone(UTC).strftime(pattern)
+
+    monkeypatch.setattr(
+        win32api, "GetDateFormat", lambda locale, flags, value: native_format(value, "%Y-%m-%d")
+    )
+    monkeypatch.setattr(
+        win32api, "GetTimeFormat", lambda locale, flags, value: native_format(value, "%H:%M")
+    )
+    assert outlook_date(datetime(2026, 1, 15, 23, 45, tzinfo=UTC)) == "2026-01-15 23:45"
+
+
 @pytest.mark.parametrize(
     "value",
     ["2026-02-30", "2026-01-01T12:00", "2026-01-01 12:00Z", "today", "01/02/2026"],

@@ -4,6 +4,24 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+from outlook_local_mcp.outlook_constants import (
+    MODIFIED_TIME_DASL_PROPERTY,
+    RECEIVED_TIME_DASL_PROPERTY,
+    SENT_TIME_DASL_PROPERTY,
+)
+
+
+def property_accessor(item):
+    def read(name):
+        fields = {
+            RECEIVED_TIME_DASL_PROPERTY: "ReceivedTime",
+            SENT_TIME_DASL_PROPERTY: "SentOn",
+            MODIFIED_TIME_DASL_PROPERTY: "LastModificationTime",
+        }
+        return getattr(item, fields[name]) if name in fields else ""
+
+    return SimpleNamespace(GetProperty=read)
+
 
 class ComFailure(Exception):
     def __init__(self, hresult=0x80070005):
@@ -56,6 +74,7 @@ class Mail:
     LastModificationTime: datetime = datetime(2026, 1, 15, 12, 0, 30, tzinfo=UTC)
     SentOn: datetime = datetime(2026, 1, 15, 11, tzinfo=UTC)
     Class: int = 43
+    Sent: bool = True
     UnRead: bool = True
     DownloadState: int = 1
     SenderName: str = "Example Sender"
@@ -70,6 +89,10 @@ class Mail:
     )
     Attachments: object = field(default_factory=Collection)
     Recipients: object = field(default_factory=Collection)
+
+    @property
+    def PropertyAccessor(self):
+        return property_accessor(self)
 
 
 class Folder:
