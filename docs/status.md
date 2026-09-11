@@ -20,14 +20,33 @@ with automatic Python provisioning through uvx.
 - Synthetic tests cover dates, regional filter formatting, cursors, inaccessible
   properties, read-only access and configuration preservation.
 
-## Remaining release gates
+## v0.1.0 published
 
-1. Finish local checks and package inspection; independently review the exact candidate.
-2. Publish the repository and versioned wheel/constraints; verify Windows CI.
-3. Fetch the public release in a fresh uv cache using managed Python.
-4. Verify released-package integration and record each tested client's scope.
+- Release: https://github.com/santiv343/outlook-local-mcp/releases/tag/v0.1.0
+- Reviewed source: `4bcca4936fc25775cf9a58d83eab2aa7ae7627c8`.
+- All 49 tests passed on Python 3.11 and 3.12. Lint, formatting, strict types and
+  wheel/source builds passed. Independent correction review passed 26 targeted tests.
+- GitHub Windows CI passed: https://github.com/santiv343/outlook-local-mcp/actions/runs/34635044295
+- The public wheel and constraints were fetched outside the checkout into a fresh
+  uv cache with a fresh managed Python installation. Doctor and the complete real
+  Outlook MCP smoke test passed using that installation.
+- Codex now uses the published uvx command. A fresh Codex session called
+  `outlook_status` successfully against the release.
+- Claude Desktop configuration was preserved and backed up. After launch, its logs
+  confirm protocol initialization and a `tools/list` response from the release.
+  An AI-triggered tool call inside Claude Desktop was not exercised.
+- Other documented clients have not been exercised locally. Windows 10 has not
+  been tested on a physical machine; the real Outlook validation used Windows 11.
+
+## Next authorized work
+
+Keep v0.1.0 available while implementing a separate feature branch for opening
+messages in Outlook, creating drafts/replies, reading conversations, additional
+recipient/category/importance/attachment-name filters, and optional reviewed sending.
+Mutation tools remain disabled by default. The implementation contract and its
+challenge must settle write recovery and send confirmation before implementation.
 
 Research and specification challenge were required and completed for MCP version,
 COM, filters, process ownership and distribution. Independent implementation review
-is required before publication. Verification records contain no mailbox contents,
+approved v0.1.0 before publication. Verification records contain no mailbox contents,
 account names, personal paths or credentials.
