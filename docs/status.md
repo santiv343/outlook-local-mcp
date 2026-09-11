@@ -1,6 +1,6 @@
 # Verification status
 
-## v0.2.1 live validation
+## v0.2.1 published and validated
 
 Implementation reviewed at `9f793a89b8d24eafb97e7af46157ce064c21d320`.
 All 147 tests passed on Python 3.11 and 3.12; lint, formatting, strict types and
@@ -54,7 +54,31 @@ does not cover another account/store, another Outlook build, Windows 10, or ever
 client. Blocked COM, denials, cancellation, resource limits and uncertain writes remain
 covered by synthetic and real-subprocess tests, not induced in the live mailbox.
 
-Publication, fresh public installation and local client update are the remaining gates.
+### Public installation and clients
+
+- Release: https://github.com/santiv343/outlook-local-mcp/releases/tag/v0.2.1
+- Final reviewed source: `6d3c33202e5d680c361a173d2e4b092c5d9561c8`.
+- Published source: `08c1c4594b56f3ffdfa9cb6e05fc1f081c23ff8d`, merged through
+  https://github.com/santiv343/outlook-local-mcp/pull/3 with an identical source tree.
+- Windows release CI passed on Python 3.11 and 3.12:
+  https://github.com/santiv343/outlook-local-mcp/actions/runs/34658066745
+- All four public assets were downloaded and matched the inspected local hashes.
+  Tracked files and wheel/source archive members passed the privacy inspection.
+- Installation outside the checkout, with an empty uv cache and a new managed
+  Python installation, passed version, doctor and the real MCP smoke test: seven-tool
+  discovery, date searches, body continuation, unchanged read state and shutdown.
+- Codex and Claude Desktop now reference the public v0.2.1 command. Configuration
+  backups were created and unrelated settings were preserved. Optional write/send
+  tools remain enabled in these local configurations; the package defaults to reading.
+- A fresh Codex session completed the synthetic subject query with one
+  `search_emails` call, the default Inbox and a twenty-item limit. It did not read
+  bodies. The serialized tool result was 2,391 bytes; this measures one journey,
+  not token usage or a guarantee of future agent behavior.
+
+Existing client sessions must reload the server or restart. Claude Desktop
+initialization and an AI-triggered invocation of v0.2.1 were not exercised. The
+platform, account and other-client limits above remain; publication and local
+installation verification are complete. No further live sends were made.
 
 Target: a public Windows Outlook MCP package for local stdio clients, read-only
 by default with opt-in actions and automatic Python provisioning through uvx.
