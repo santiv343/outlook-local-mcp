@@ -20,7 +20,9 @@ async def wait_until(predicate):
 
 
 async def test_hard_timeout_reaps_worker_and_next_call_recovers(tmp_path):
-    owner = supervisor(timeout=1)
+    owner = supervisor(timeout=5)
+    await owner.request(EToolName.OUTLOOK_STATUS, {})
+    owner.timeout = 0.25
     marker = tmp_path / "started"
     started = time.monotonic()
     task = asyncio.create_task(
@@ -35,6 +37,7 @@ async def test_hard_timeout_reaps_worker_and_next_call_recovers(tmp_path):
             await task
         assert time.monotonic() - started < 4
         assert child.returncode is not None and owner.process is None
+        owner.timeout = 5
         result = await owner.request(EToolName.OUTLOOK_STATUS, {})
         assert result["pid"] != child.pid
     finally:
@@ -94,3 +97,30 @@ async def test_worker_crash_is_sanitized_and_recoverable():
         assert (await owner.request(EToolName.OUTLOOK_STATUS, {}))["available"]
     finally:
         await owner.close()
+
+
+async def test_close_during_process_creation_reaps_new_worker(monkeypatch):
+    owner = supervisor()
+    spawn_started = asyncio.Event()
+    release_spawn = asyncio.Event()
+    original_spawn = asyncio.create_subprocess_exec
+    created = []
+
+    async def delayed_spawn(*arguments, **options):
+        spawn_started.set()
+        await release_spawn.wait()
+        child = await original_spawn(*arguments, **options)
+        created.append(child)
+        return child
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", delayed_spawn)
+    task = asyncio.create_task(owner.request(EToolName.OUTLOOK_STATUS, {}))
+    await spawn_started.wait()
+    await owner.close()
+    release_spawn.set()
+    with pytest.raises(
+        OutlookError, check=lambda error: error.code == EErrorCode.OUTLOOK_UNAVAILABLE
+    ):
+        await task
+    assert owner.process is None and owner.pending == 0
+    assert len(created) == 1 and created[0].returncode is not None

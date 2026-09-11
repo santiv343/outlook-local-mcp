@@ -101,5 +101,7 @@ def metadata_matches(
         if not any(
             needle in value.casefold() for value in (email.sender.name, email.sender.email) if value
         ):
+            if email.sender.name is None or email.sender.email is None:
+                raise OutlookError(EErrorCode.METADATA_UNAVAILABLE)
             return False
     return True

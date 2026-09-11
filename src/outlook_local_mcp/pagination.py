@@ -166,6 +166,7 @@ def scan_page(
                 EErrorCode.ITEM_NOT_FOUND,
                 EErrorCode.ACCESS_DENIED,
                 EErrorCode.BODY_UNAVAILABLE,
+                EErrorCode.METADATA_UNAVAILABLE,
             }:
                 raise mapped from None
             omitted += 1

@@ -102,6 +102,9 @@ class Supervisor:
                 if self.closed:
                     raise OutlookError(EErrorCode.OUTLOOK_UNAVAILABLE)
                 process = await self._start()
+                if self.closed:
+                    await self._stop()
+                    raise OutlookError(EErrorCode.OUTLOOK_UNAVAILABLE)
                 writer, reader = process.stdin, process.stdout
                 if writer is None or reader is None:
                     raise OutlookError(EErrorCode.INTERNAL_ERROR, "Worker pipes were not created.")

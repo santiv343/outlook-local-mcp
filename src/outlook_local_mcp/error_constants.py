@@ -34,6 +34,10 @@ ERRORS: dict[EErrorCode, tuple[str, bool]] = {
         "Outlook did not provide the email body. Check its availability in Outlook.",
         False,
     ),
+    EErrorCode.METADATA_UNAVAILABLE: (
+        "Outlook did not expose metadata required to evaluate this filter.",
+        False,
+    ),
     EErrorCode.INVALID_ARGUMENT: (
         "Invalid arguments. Check the tool schema and parameter relationships.",
         False,

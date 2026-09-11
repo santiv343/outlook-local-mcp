@@ -76,6 +76,19 @@ def test_denied_sender_property_does_not_leak_exception():
     assert person.email is None and warnings
     assert "private-error" not in str(warnings)
     assert com_error(ComFailure()).code == EErrorCode.ACCESS_DENIED
+    assert com_error(ComFailure(0x80040102)).code == EErrorCode.OUTLOOK_UNAVAILABLE
+
+
+def test_missing_sender_metadata_makes_unmatched_filter_inconclusive():
+    mail = Mail(SenderEmailType="EX", Sender=None)
+    outlook = Outlook(Application([mail]))
+    unmatched = outlook.emails(SearchArguments(sender="unknown@example.com"))
+    assert unmatched.items == [] and unmatched.omitted == 1
+    assert unmatched.coverage.exhausted and not unmatched.coverage.evaluation_complete
+    assert unmatched.warnings
+    matched = outlook.emails(SearchArguments(sender="Example Sender"))
+    assert len(matched.items) == 1 and matched.omitted == 0
+    assert matched.coverage.evaluation_complete
 
 
 def test_body_unavailable_is_distinct_from_empty_and_denied():
