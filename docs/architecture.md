@@ -77,6 +77,14 @@ after assignment it checks account and content without treating its own dirty fl
 as a user edit. PUTREF, response construction and serialization are inside the
 unknown-mutation boundary. COM references never leave the STA worker.
 
+Represented From identity has a stricter absence rule than general item lookup.
+Only exact numeric `MAPI_E_NOT_FOUND`, directly or in a valid `DISP_E_EXCEPTION`
+wrapper without conflicting status, or a successful empty string allows the
+fallback path. The broad `ITEM_NOT_FOUND` category, denied/inaccessible identity
+and malformed or unexpected values never authorize fallback. A nonempty represented
+SMTP identity must validate and match the selected account. A represented display
+name is resolved rather than treated as proof of delegation or absence.
+
 References: [STA requirement](https://learn.microsoft.com/en-us/office/client-developer/outlook/selecting-an-api-or-technology-for-developing-solutions-for-outlook),
 [Items.Restrict](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict),
 [date comparisons](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/search-and-filter/filtering-items-using-a-date-time-comparison).

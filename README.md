@@ -1,13 +1,50 @@
-# outlook-local-mcp
+# Outlook Local MCP
 
-Read your local Outlook mailbox from an MCP client. Runs on Windows, attaches to
-your existing **classic Outlook** session, and exposes seven read-only tools over
-standard input/output. Opening messages, creating drafts/replies and reviewed sending
-are available through explicit capability flags.
+![Outlook Local MCP wordmark beside an envelope and conversation bubble](docs/assets/readme-banner.png)
 
-The server is client-independent: use it with local stdio clients such as Codex,
-Claude Desktop, Claude Code, Cursor or VS Code. Configuration varies by client;
-see [client setup](docs/clients.md) and [tested integrations](docs/status.md).
+> Ask your assistant about the email already in Outlook.
+
+[Quick start](#quick-start) · [Client setup](docs/clients.md) ·
+[Tools](docs/tools.md) · [Troubleshooting](docs/troubleshooting.md)
+
+Connect the **classic Outlook** session running on your Windows PC to an assistant
+that supports local MCP servers. It uses the Outlook profile you already have
+configured. Setup guides cover Codex, Claude Desktop, Claude Code, Cursor and VS Code;
+see [tested compatibility](docs/clients.md#tested-compatibility) for what has been
+verified in practice.
+
+## Why this exists
+
+Outlook is already signed in. It can already open your mailbox. The idea behind
+this project is to let an assistant use that access without having to register
+another application or request a new set of mailbox API permissions.
+
+No Azure app registration and no separate email credentials to give the server.
+Your existing Outlook permissions and company policies still apply.
+
+The first version focused on finding and reading email. Opening messages, drafting
+replies and sending after review grew out of that same workflow. You choose which
+actions to enable.
+
+## What you can ask
+
+Start with everyday questions:
+
+> What arrived in my Inbox this week?
+>
+> Find the email about the project deadline.
+>
+> What does that message say?
+
+With [optional Outlook actions](#optional-outlook-actions) enabled, you can continue:
+
+> Open that message in Outlook.
+>
+> Draft a reply saying I can make the meeting.
+
+Reading is available by default. Opening messages and saving drafts are opt-in;
+sending has a separate flag and requires a complete preview for your approval.
+The assistant receives the mail data it requests, so its own data policy still applies.
 
 ## Quick start
 
@@ -16,7 +53,9 @@ see [client setup](docs/clients.md) and [tested integrations](docs/status.md).
    On Windows, `winget install --id astral-sh.uv --exact` is one option.
 2. Open **classic Outlook**, load your profile and resolve any pending dialogs.
    New Outlook does not implement the required Object Model.
-3. Merge this entry into your MCP client's configuration, preserving other entries:
+3. Add this entry to your client's MCP configuration, preserving existing entries.
+   This JSON works with `mcpServers` clients; use the [client guide](docs/clients.md)
+   for Codex's TOML format, VS Code's `servers` format and registration commands.
 
 ```json
 {
@@ -34,43 +73,22 @@ see [client setup](docs/clients.md) and [tested integrations](docs/status.md).
 }
 ```
 
-4. Restart the client or reload its MCP servers, then call `outlook_status`.
+4. Restart the client or reload its MCP servers. Ask it to check Outlook, then try
+   one of the questions above.
 
 `uvx` downloads Python and the pinned runtime dependencies on first use. Release
 assets come from this repository's GitHub Releases; dependencies come from their
 package index. Later starts use uv's cache. Installation and updates need internet.
-Run the diagnostic below first if your client has a short startup timeout.
+Run the [diagnostic](docs/clients.md#check-the-connection) first if your
+client has a short startup timeout.
 
 If a desktop client cannot find `uvx`, use its absolute path from
 `(Get-Command uvx).Source`. Launch the server on **native Windows**: Linux, WSL,
 remote containers and cloud chats cannot directly access this Windows COM session.
 
-## Diagnose and configure
-
-In PowerShell, define the versioned command once:
-
-```powershell
-$release = 'https://github.com/santiv343/outlook-local-mcp/releases/download/v0.2.1'
-$serverArgs = @(
-  '--python', '3.12', '--constraints', "$release/constraints.txt",
-  '--from', "$release/outlook_local_mcp-0.2.1-py3-none-any.whl",
-  'outlook-local-mcp'
-)
-uvx @serverArgs doctor
-uvx @serverArgs config
-```
-
-`doctor` checks the platform, COM registration and running Outlook session with a
-deadline. It reports status, version and counts without account names or messages.
-The MCP tools perform these same checks lazily. The server still starts and
-advertises its tools when Outlook is unavailable.
-
-`config` prints generic JSON with the installed `uvx` path. The optional
-`configure-claude` command discovers Claude Desktop's settings, preserves existing
-entries, backs up the file and writes atomically. Use `--dry-run` to preview changes.
-A conflicting entry requires `--replace`; ambiguous installations require
-`--config-path`. Invalid JSON is never overwritten. Restart Claude after updating.
-For Codex and other clients, see [client setup](docs/clients.md).
+The [client guide](docs/clients.md) includes a diagnostic command and configuration
+steps for each client. The server can start and advertise its tools even when
+Outlook is unavailable.
 
 ## Tools
 
@@ -91,7 +109,7 @@ For an Inbox overview, the agent can call `search_emails` directly with date fil
 No mailbox or folder discovery is required. Responses use short references, lists
 contain no bodies, and body reads default to 2,000 characters. The server instructs
 clients to make sequential calls and request content only when the question needs it.
-See [efficient use](docs/efficient-use.md).
+See [efficient use](docs/tools.md#efficient-use).
 
 ## Optional Outlook actions
 
@@ -152,8 +170,9 @@ Outlook and run `uv run --locked python scripts/smoke_test.py`. This reads messa
 but prints only counts and pass/fail. Never publish mailbox data or personal config.
 `scripts/smoke_actions.py` additionally creates and opens one synthetic draft and
 previews it, without sending. It retains that draft for review. Inspect Outlook
-before rerunning after an uncertain mutation result. See [verification status](docs/status.md)
-for the distinction between real draft/preview checks and simulated submission tests.
+before rerunning after an uncertain mutation result. See
+[tested compatibility](docs/clients.md#tested-compatibility) for real reading,
+draft, reply and delivery checks, simulated failure tests and untested environments.
 
 [Architecture](docs/architecture.md) · [Troubleshooting](docs/troubleshooting.md) ·
 [Security](SECURITY.md) · [MIT license](LICENSE)

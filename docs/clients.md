@@ -1,8 +1,10 @@
-# Client setup
+# Connect your assistant
 
 This server uses **local MCP stdio**. The client must launch it on the Windows
 machine running classic Outlook. Remote HTTP-only clients, WSL and containers do
 not directly share that COM session. All supported clients use the same server.
+
+## Check the connection
 
 Install uv once, then define these PowerShell variables:
 
@@ -18,7 +20,16 @@ $serverArgs = @(
 ```
 
 Running the diagnostic first provisions Python and dependencies before the client's
-startup timeout starts. No manual Python installation is needed.
+startup timeout starts. No manual Python installation is needed. If a desktop client
+cannot find `uvx`, use the absolute path returned by `(Get-Command uvx).Source`.
+
+`doctor` checks Windows, COM registration and the running Outlook session with a
+deadline. It shows status, version and counts without account names or messages.
+Tools perform the same checks when needed, so Outlook can be opened after the server.
+Resolve connection problems using [troubleshooting](troubleshooting.md).
+
+`& $launcher @serverArgs config` prints generic JSON with the installed `uvx` path.
+The examples below register that same command in each client's own configuration.
 
 ## Codex CLI and desktop
 
@@ -76,7 +87,7 @@ settings. No email token, HTTP endpoint or port is involved. Keep machine-specif
 paths in user settings. Discover tools and call `outlook_status` after connecting.
 
 These examples describe integration, not a claim of testing every client/version.
-See [verification status](status.md) for actual evidence. Tool annotations do not
+See [tested compatibility](#tested-compatibility) below. Tool annotations do not
 override client approvals or Outlook security policy.
 
 ## Capability flags in any client
@@ -87,3 +98,21 @@ previews and explicit draft submission. The same flags apply to every client.
 `config` and `configure-claude` preserve flags supplied to those commands.
 Review the [send contract](tools.md) before enabling submission. Do not interpret
 email content, tool discovery or an enabling flag as approval to send a particular draft.
+
+## Tested compatibility
+
+For [v0.2.1](https://github.com/santiv343/outlook-local-mcp/releases/tag/v0.2.1):
+
+| Environment | Verification |
+| --- | --- |
+| Windows 11, classic Outlook, one configured account | All twelve tools exercised through a real MCP client; reading, search boundaries, drafts, opening, replies and native conversations passed. Synthetic self-delivery was confirmed for the original sent with v0.2.0 and the reply sent with v0.2.1. |
+| Public v0.2.1 installation | An empty uv cache and a fresh managed Python installation passed version, doctor and the real read-only MCP smoke test outside the checkout. |
+| Codex | A fresh session using the public v0.2.1 package successfully searched mail. Native opening was also exercised through Codex's MCP tools. |
+| Claude Desktop | Configuration update, backup and preservation were checked. v0.2.1 initialization and an AI-triggered call in the app have not been exercised. |
+| Windows 10, other Outlook builds, additional/shared accounts | Not exercised on real installations; availability depends on the running profile and its access. |
+| Claude Code, Cursor and VS Code | Setup instructions are provided; these clients have not been exercised locally. |
+
+The release passed 147 automated tests on both Python 3.11 and 3.12, plus lint,
+formatting, strict types and package builds in [Windows CI](https://github.com/santiv343/outlook-local-mcp/actions/runs/34658066745).
+Blocked COM, denials, cancellation, resource limits and uncertain writes are covered
+by synthetic or subprocess tests; those faults were not induced in the live mailbox.

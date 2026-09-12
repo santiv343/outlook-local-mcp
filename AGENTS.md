@@ -14,7 +14,9 @@
 - Keep all code, comments, tool names, descriptions, errors and documentation in English.
 - Reuse existing mechanisms. Do not add frameworks for state, dependency injection,
   telemetry, persistence, HTTP, providers or background synchronization.
-- Current decisions and progress: docs/status.md, docs/architecture.md and docs/v0.2-plan.md.
+- Public behavior and maintainer guidance: README.md, docs/tools.md and docs/architecture.md.
+- Keep local plans, review notes and validation receipts under ignored .local/. Optional
+  .local/status.md can record ongoing work; a fresh clone must not depend on private files.
 - Validate with `uv run --locked ruff check .`, `uv run --locked ruff format --check .`,
   `uv run --locked mypy`, `uv run --locked pytest`, and `uv build --no-sources`.
 - Run `uv run --locked python scripts/smoke_test.py` for the real MCP/Outlook journey.
