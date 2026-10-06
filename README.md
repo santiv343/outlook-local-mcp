@@ -2,10 +2,10 @@
 
 ![Outlook Local MCP wordmark beside an envelope and conversation bubble](docs/assets/readme-banner.png)
 
-> Ask your assistant about the email already in Outlook.
+> Connect your AI assistant to classic Outlook on Windows. Read-only by default, with opt-in drafts and reviewed sending.
 
-[Quick start](#quick-start) · [Client setup](docs/clients.md) ·
-[Tools](docs/tools.md) · [Troubleshooting](docs/troubleshooting.md)
+[Release v0.2.1](https://github.com/santiv343/outlook-local-mcp/releases/tag/v0.2.1) · [Quick start](#quick-start) · [Client setup](docs/clients.md) ·
+[Tools](docs/tools.md) · [Tested compatibility](docs/clients.md#tested-compatibility) · [Troubleshooting](docs/troubleshooting.md)
 
 Connect the **classic Outlook** session running on your Windows PC to an assistant
 that supports local MCP servers. It uses the Outlook profile you already have
